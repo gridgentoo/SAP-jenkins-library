@@ -870,9 +870,11 @@ def handleStep(stepName, prepareDefaultValuesStep, gse, customDefaults) {
     File theStepDocu = new File(stepsDocuDir, "${stepName}.md")
     File theStepDeps = new File('documentation/jenkins_workspace/plugin_mapping.json')
 
-    if (!theStepDocu.exists() && stepName.indexOf('Stage') != -1) {
+    def stageIdentifier = 'Stage'
+    def stagePartIndex = stepName.indexOf(stageIdentifier)
+    if (!theStepDocu.exists() && stagePartIndex != -1 && stagePartIndex < (stepName.length - stageIdentifier.length) {
         //try to get a corresponding stage documentation
-        def stageName = stepName.split('Stage')[1].toLowerCase()
+        def stageName = stepName.split(stageIdentifier)[1].toLowerCase()
         theStepDocu = new File(stagesDocuDir,"${stageName}.md" )
     }
 
