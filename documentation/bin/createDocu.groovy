@@ -872,7 +872,7 @@ def handleStep(stepName, prepareDefaultValuesStep, gse, customDefaults) {
 
     def stageIdentifier = 'Stage'
     def stagePartIndex = stepName.indexOf(stageIdentifier)
-    if (!theStepDocu.exists() && stagePartIndex != -1 && stagePartIndex < (stepName.length - stageIdentifier.length)) {
+    if (!theStepDocu.exists() && stagePartIndex != -1 && stagePartIndex < (stepName.length() - stageIdentifier.length())) {
         //try to get a corresponding stage documentation
         def stageName = stepName.split(stageIdentifier)[1].toLowerCase()
         theStepDocu = new File(stagesDocuDir,"${stageName}.md" )
