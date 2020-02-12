@@ -2,11 +2,13 @@ package http
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -208,5 +210,29 @@ func (c *Client) applyDefaults() {
 	}
 	if c.logger == nil {
 		c.logger = log.Entry().WithField("package", "SAP/jenkins-library/pkg/http")
+	}
+}
+
+func (c *Client) MapResponseToStruct(r io.ReadCloser, response interface{}) {
+	defer r.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(r)
+	newStr := buf.String()
+	if len(newStr) > 0 {
+
+		unquoted, err := strconv.Unquote(newStr)
+		if err != nil {
+			err = json.Unmarshal([]byte(newStr), response)
+			if err != nil {
+				c.logger.WithError(err).Fatalf("Error during unqote response: %v", newStr)
+			}
+		} else {
+			err = json.Unmarshal([]byte(unquoted), response)
+		}
+
+		if err != nil {
+			c.logger.WithError(err).Fatalf("Error during decode response: %v", newStr)
+		}
 	}
 }

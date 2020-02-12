@@ -1,0 +1,272 @@
+metadata:
+  name: vulasExecuteScan
+  description: Vulas is a program analysis tool that helps you identify, assess and mitigate vulnerabilities in the open-source dependencies of Java and Python applications.
+  longDescription: |-
+    Vulas is a program analysis tool that helps you identify, assess and mitigate vulnerabilities in the open-source dependencies of Java and Python applications.
+    In future it is planned to support even more programming languages i.e. Javascript with this tool. For a full list of supported and recommended languages
+    please have a look at the [OS3 JAM Tools Overview Page](https://jam4.sapjam.com/groups/XgeUs0CXItfeWyuI4k7lM3/overview_page/VpPnhWUTipYV4eg57rSmXk).
+
+    !!! info
+        Please update your Vulas version to the most recent [release](https://github.com/SAP/vulnerability-assessment-tool/releases).
+
+    Piper is an opinionated CI/CD pipeline framework allowing you to handle the SAP Product Standard requirements throughout you software delivery process in an automated fashion.
+    Vulas is a SAP internal tool to detect vulnerable Free and Open Source (FOSS) software components being used in your product. As a unique capability it cannot just simply detect the
+    FOSS component but it is actually able to analyse into your specific usage scenario and can therefore provide additional insights whether the contained vulnerabilities would be reachable through your application.
+    This can be specifically helpful in a situation where you can not simply get rid of a vulnerability by updating to the latest version of the FOSS affected.
+    May it be due to the fact that no fix has been provided by the community yet or may it be that you cannot simply update due to potential incompatibilities of your code in related to the version providing the fix.
+
+    Since these kind of in-depth scans take way more time than a simple detection of the affected library version Piper can create a scheduled pipeline run by setting `runNightly: true` as part of the `setupPipelineEnvironment` step configuration
+    and setting `vulasRunNightly` on step `executeVulasScan` in addition. Doing so enables Vulas reachability analysis within Piper on a nightly basis and reports it into the Vulas backend into a version named `<major-version-of-your-module>` so
+    if your currently declared version in the `pom.xml` would be `1.2.3` the version used for nightly scans would be `1` whereas the continuous scans that happen an any merge/commit to master
+    would report in a version `<major-version-of-your-module>-SNAPSHOT`.
+
+    The overall idea of the process would be that once:
+
+    **Scenario 1**
+
+    * a merge commit happens and the pipeline fails on Vulas with vulnerabilities of CVSS >= 7 being detected
+    * you may simply remove or update the related component(s) based on what is a working solution for your scenario - usually the later
+    * your changes are committed to master and trigger a new run, vulnerabilities are gone and Vulas or overall pipeline succeeds
+
+    **Scenario 2**
+
+    * a merge commit happens and the pipeline fails on Vulas with vulnerabilities of CVSS >= 7 being detected
+    * you can neither remove or update the related component(s)
+    * you may temporarily exclude the CVEs from failing the pipeline until you were able to review the results of the next nightly run
+    * depending on the detailed result provided by the nightly run you could consider to leave the exclusions in since they show not to be reachable
+    * in case there is any evidence on the reachability you need consider counter measures like replacing the FOSS with a non-vulnerable alternative, replacing the functionality
+      with your own non-vulnerable code, contacting [Phosphor team](https://wiki.wdf.sap.corp/wiki/display/osssec/Phosphor) on the availability of a patched version
+      of your FOSS or the willingness to do this job for you or finally you patching the FOSS under consideration of license restrictions and obligations.
+
+    Whenever you look at nightly results of Vulas please cross-check them manually and consider aspects like the test coverage of your code.
+    Depending on that you can (de-)stabilize your gut feeling on how reliable the Vulas runtime detection results are.
+spec:
+  inputs:
+    params:
+    - name: pythonVersion
+      type: string
+      description: The Python version to be used, either `'python2'` or `'python3'`
+      scope:
+      - GENERAL
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: python3
+    - name: buildDescriptorFile
+      type: string
+      description: 'Path to the build descriptor file addressing the module/folder
+        to be scanned. Defaults are for scanType=`maven`: `./pom.xml`, scanType=`pip`:
+        `./setup.py`, scanType=`mta`: determined automatically'
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: svmEndpoint
+      type: string
+      description: The REST API endpoint of the SVM server
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: /SVM/services
+    - name: vulasVersionMapping
+      type: string
+      description: 'A map i.e. `[''setup.py'': ''0.17'']` to support overrides of
+        versions reported into the Vulas backend. The key of each of the entries is
+        the workspace-relative path to the build descriptor and the value is the version
+        string to be used for reporting'
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: svmServerUrl
+      type: string
+      description: The URL of the SVM server
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: https://svmprodw8563e4f1.int.sap.hana.ondemand.com
+    - name: vulasNightlySchedule
+      type: string
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: space
+      type: string
+      description: '`space:`<br/>&nbsp;&nbsp;`exportConfiguration: ''AGGREGATED''`<br/>&nbsp;&nbsp;`public:
+        true`<br/>&nbsp;&nbsp;`owners: []`|Parameters used to created spaces on the
+        fly. Allowed values for `exportConfiguration` are `''AGGREGATED''`, `''OFF''`,
+        `''DEFAULT''` and `owners` should be filled with one or several email addresses,
+        ideally a DL that feels responsible for this workspace'
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default:
+        exportConfiguration: AGGREGATED
+        public: true
+        owners: []
+    - name: backendEndpoint
+      type: string
+      description: Endpoint of the Vulas backend used for any REST API calls
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: /backend
+    - name: vulasLookupByGAVs
+      type: string
+      description: list of ArtifactIds to be looked up
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: vulasPlugin
+      type: string
+      description: The version of the Vulas Maven plugin used for scanning
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: com.sap.research.security.vulas:plugin-maven
+    - name: serverUrl
+      type: string
+      description: The Vulas server URL
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: https://vulas.c.eu-de-2.cloud.sap
+    - name: artifactUrl
+      type: string
+      description: URL pointing to the artifact in the staging repo, usually auto-configured by the pipeline
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: vulasPurgeVersions
+      type: bool
+      description: Whether old versions of the scanned artifact should be purged/deleted in the Vulas backend.
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: true
+    - name: vulasCycleCommand
+      type: string
+      description: The command used to execute the Maven scan for every commit to the relevant branch
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: -DskipTests ${vulasProperty} ${vulasPlugin}:clean compile ${vulasPlugin}:app install
+    - name: vulasPurgeVersionsKeepLast
+      type: string
+      description: The numnber of versions to be kept starting from the most recent ones
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: 5
+    - name: pythonCli
+      type: string
+      description: Whether the Vulas Python CLI is to used for scanning
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: pythonSources
+      type: '[]string'
+      description: The list of source directories which will be added to Vulas scan config in case of a Python scan
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: []
+    - name: vulasNightlyCommand
+      type: string
+      description: The command used to execute the Maven scan performing a reachability analysis
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: -T 1C -Dmaven.test.failure.ignore=true -Djacoco.skip=true ${vulasProperty} ${vulasPlugin}:clean compile ${vulasPlugin}:app ${vulasPlugin}:a2c ${vulasPlugin}:prepare-vulas-agent install ${vulasPlugin}:upload ${vulasPlugin}:t2c
+    - name: buildDescriptorExcludeList
+      type: string
+      description: Build descriptor files to exclude modules from being scanned
+      scope:
+      - GENERAL
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: svmExemptionFileName
+      type: string
+      description: The name used to create the Vulas properties file
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: vulas-exemptionsFromSvm.properties
+    - name: vulasRunNightly
+      type: string
+      description: Defines which kind of scan is being executed. When setting it to `true` and running manual or scheduled scans a reachability analysis will be performed whereas `false` will do a simple detection on the library level. Setting `true` on a build triggered by an SCM change will *not* switch to always performing a reachability analysis to allow the pipeline to automatically alternate between library level and reachability analysis. When staying with the default value `false` only library detection will happen, so to opt-in for reachability analysis - the former default - you need to set `true`.
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: vulasSpaceToken
+      type: string
+      description: The token of the workspace created in the Vulas backend, if not provided Piper will try to manage the workspace based on the `ppmsID` or the group ID of the project being analysed
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: pythonInstallCommand
+      type: string
+      description: The additional install command issued to initialize the Python environment
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: ${pip} install --user --upgrade --index-url http://nexus.wdf.sap.corp:8081/nexus/content/groups/build.snapshots.pypi/simple/ --trusted-host nexus.wdf.sap.corp --no-cache-dir setuptools vulas-plugin-setuptools .
+    - name: scanType
+      type: string
+      description: The type of scan to execute which can be `'maven'`, `'pip'`, or `'mta'`
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: maven
+    - name: ppmsID
+      type: string
+      description: PPMS Object Number of the Software Conmponent Version the pipeline's build artifact correlates to
+      scope:
+      - GENERAL
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    secrets:
+    - name: svmCredentialsId
+      type: jenkins
+    resources: []
+  containers:
+  - image: docker.wdf.sap.corp:50000/piper/maven
+    workingDir: /home/piper
+  outputs:
+    resources:
+      - name: influx
+        type: influx
+        params:
+          - name: vulas_data
+            fields:
+              - name: overall_cve
+              - name: proved_reachable
+              - name: proved_reachable_cve
+              - name: vulnerabilities
+              - name: vulnerabilities_cve
+              - name: triaged_vulnerabilities
+              - name: triaged_vulnerabilities_cve
+              - name: testProvided_vulnerabilities
+              - name: testProvided_vulnerabilities_cve

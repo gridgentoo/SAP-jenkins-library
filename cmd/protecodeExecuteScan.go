@@ -14,6 +14,7 @@ import (
 	"github.com/SAP/jenkins-library/pkg/command"
 	piperDocker "github.com/SAP/jenkins-library/pkg/docker"
 	"github.com/SAP/jenkins-library/pkg/log"
+	"github.com/SAP/jenkins-library/pkg/piperutils"
 	"github.com/SAP/jenkins-library/pkg/protecode"
 	"github.com/SAP/jenkins-library/pkg/telemetry"
 )
@@ -286,7 +287,8 @@ func uploadScanOrDeclareFetch(config protecodeExecuteScanOptions, productID int,
 				log.Entry().Fatalf("There is no file path configured for upload : %v", config.FilePath)
 			}
 			pathToFile := filepath.Join(config.FilePath, fileName)
-			if !(fileExists(pathToFile)) {
+			exists, _ := piperutils.FileExists(pathToFile)
+			if !(exists) {
 				log.Entry().Fatalf("There is no file for upload: %v", pathToFile)
 			}
 
@@ -301,14 +303,6 @@ func uploadScanOrDeclareFetch(config protecodeExecuteScanOptions, productID int,
 	}
 
 	return productID
-}
-
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
 }
 
 func hasExisting(productID int, reuseExisting bool) bool {

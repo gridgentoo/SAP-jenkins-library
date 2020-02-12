@@ -264,7 +264,7 @@ func (pc *Protecode) DeleteScan(cleanupMode string, productID int) {
 		protecodeURL := pc.createURL("/api/product/", fmt.Sprintf("%v/", productID), "")
 		headers := map[string][]string{}
 
-		pc.sendAPIRequest("DELETE", protecodeURL, headers)
+		pc.sendAPIRequest(http.MethodDelete, protecodeURL, headers)
 		break
 	default:
 		pc.logger.Fatalf("Unknown cleanup mode %v", cleanupMode)
