@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -58,9 +59,13 @@ func executePipScan(cmd command.Command) {
 
 }
 
-func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion string) {
+func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion string, cmd command.Command) {
 
 	var m map[string]string
+	buf := new(bytes.Buffer)
+	cmd.Stdout(buf)
+
+	//TODO stays on the groovy side
 	/*
 		dockerExecute(
 			script: script,
@@ -75,7 +80,6 @@ func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion strin
 	m["vulas.core.backendConnection"] = "READ_WRITE"
 	m["vulas.report.reportDir"] = "target/vulas/report"
 	m["vulas.core.appContext.version"] = vulasProjectVersion
-	//TODO
 	m["vulas.core.app.sourceDir"] = strings.Join(config.PythonSources[:], ",")
 	m["vulas.core.app.appPrefixes"] = "com.sap"
 
@@ -91,12 +95,10 @@ func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion strin
 		//TODO
 		handlePythonCli(config, m, m)
 	} else {
-		/*TODO
-		def pythonInstallPath = sh script: "which ${config.pythonVersion}", returnStdout: true
-		if (pythonInstallPath) {
-			options += ["vulas.core.bom.python.python = ${pythonInstallPath}"]
-		}
-		*/
+
+		cmd.RunExecutable(fmt.Sprintf("which %v", config.PythonVersion))
+		pythonInstallPath := buf.String()
+		ifNotNullAddValue(pythonInstallPath, m["vulas.core.bom.python.python"])
 	}
 
 	configFileBackup := ""
@@ -111,25 +113,27 @@ func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion strin
 		copyCommand = fmt.Sprintf("cp %v %v\n", configFileName, configFileBackup)
 
 	}
-	// TODO path := strings.ReplaceAll(config.BuildDescriptorFile, "setup.py", "")
+	path := strings.ReplaceAll(config.BuildDescriptorFile, "setup.py", "")
 
 	if len(config.PythonCli) > 0 {
 
-		/*def releaseUrl = sh script: "curl -Ls -o /dev/null -w %{url_effective} https://github.wdf.sap.corp/vulas/vulas/releases/latest", returnStdout: true
-		def parts = releaseUrl.split("/")
-		def version = parts[parts.size() - 1]
-		def type = parts[parts.size() - 2]
-		def downloadUrl = "https://github.wdf.sap.corp/vulas/vulas/releases/download/${type}/${version}/vulas-cli-${version}.zip"
+		cmd.RunExecutable(fmt.Sprintf("curl -Ls -o /dev/null -w %v https://github.wdf.sap.corp/vulas/vulas/releases/latest", url_effective))
+		releaseUrl := buf.String()
+		/*
+			def parts = releaseUrl.split("/")
+			def version = parts[parts.size() - 1]
+			def type = parts[parts.size() - 2]
+			def downloadUrl = "https://github.wdf.sap.corp/vulas/vulas/releases/download/${type}/${version}/vulas-cli-${version}.zip"
 
-		fetchExemptionFileFromSVM(config, svm, "${path}vulas-cli/")
+			fetchExemptionFileFromSVM(config, svm, "${path}vulas-cli/")
 
-		sh """
-			cd ${path}
-			curl -L -o vulas-cli.zip ${downloadUrl}
-			unzip vulas-cli.zip
-			${copyCommand}printf \'${options.join('\n')}\n\' ${configFileBackup} > ./vulas-cli/${configFileName}
-			cd vulas-cli/app
-			find . -wholename **/ /*' -not -type d -and -not -path '*/ //vulas-cli//*' -exec cp -p --parents {} ./vulas-cli/app \\;
+			sh """
+				cd ${path}
+				curl -L -o vulas-cli.zip ${downloadUrl}
+				unzip vulas-cli.zip
+				${copyCommand}printf \'${options.join('\n')}\n\' ${configFileBackup} > ./vulas-cli/${configFileName}
+				cd vulas-cli/app
+				find . -wholename **/ /*' -not -type d -and -not -path '*/ //vulas-cli//*' -exec cp -p --parents {} ./vulas-cli/app \\;
 		/*${config.pythonInstallCommand}
 			  cd ..
 			  java -jar vulas-cli-${version}-jar-with-dependencies.jar -goal clean
@@ -148,6 +152,12 @@ func executePythonScan(config vulasExecuteScanOptions, vulasProjectVersion strin
 
 			  sh "cd ${path} && ${config.pythonVersion} setup.py clean && ${config.pythonVersion} setup.py app && ${config.pythonVersion} setup.py report"
 		*/
+	}
+}
+
+func ifNotNullAddValue(value, result string) {
+	if len(value) > 0 {
+		result = value
 	}
 }
 
