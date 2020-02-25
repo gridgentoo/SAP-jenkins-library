@@ -5,6 +5,7 @@ import (
 
 	"github.com/SAP/jenkins-library/pkg/command"
 	"github.com/SAP/jenkins-library/pkg/log"
+	"github.com/SAP/jenkins-library/pkg/maven"
 	"github.com/SAP/jenkins-library/pkg/nexus"
 	"github.com/SAP/jenkins-library/pkg/piperutils"
 	"github.com/SAP/jenkins-library/pkg/telemetry"
@@ -68,8 +69,18 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 
 	if projectStructure.UsesMaven() {
 		//todo read pom
+
+		// TODO: deployMavenArtifactsToNexus.groovy has "pomPath" in the step configuration, which is then prepended if present
+
+		options := maven.ExecuteOptions{
+			PomPath:      "",
+			Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
+			Defines:      []string{"-Dexpression=project.artifactId", "-DforceStdout", "-q"},
+			ReturnStdout: true,
+		}
+		artifactID, err := maven.Execute(&options, command)
 		if err == nil {
-			err = nexusClient.SetArtifactsVersion("1.0")
+			err = nexusClient.SetArtifactsVersion(artifactID)
 		}
 		if err == nil {
 			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "pom.xml", Type: "pom", Classifier: "", ID: config.ArtifactID})
