@@ -3,10 +3,11 @@ package maven
 import (
 	"bytes"
 
-	"github.com/SAP/jenkins-library/pkg/http"
-	"github.com/SAP/jenkins-library/pkg/log"
 	"io"
 	"strings"
+
+	"github.com/SAP/jenkins-library/pkg/http"
+	"github.com/SAP/jenkins-library/pkg/log"
 )
 
 type ExecuteOptions struct {
@@ -95,6 +96,10 @@ func getParametersFromConfig(config *ExecuteOptions, client http.Downloader) []s
 
 	if config.Flags != nil {
 		parameters = append(parameters, config.Flags...)
+	}
+
+	if config.Defines != nil {
+		parameters = append(parameters, config.Defines...)
 	}
 
 	parameters = append(parameters, "--batch-mode")
