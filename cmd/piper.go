@@ -58,6 +58,7 @@ func Execute() {
 	rootCmd.AddCommand(CheckmarxExecuteScanCommand())
 	rootCmd.AddCommand(ProtecodeExecuteScanCommand())
 	rootCmd.AddCommand(NexusUploadCommand())
+	rootCmd.AddCommand(MavenExecuteCommand())
 
 	addRootFlags(rootCmd)
 	if err := rootCmd.Execute(); err != nil {
