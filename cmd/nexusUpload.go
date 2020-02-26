@@ -3,14 +3,15 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
-	"golang.org/x/tools/go/ssa/interp/testdata/src/fmt"
 	"io/ioutil"
 	"strings"
 
+	"fmt"
 	"github.com/SAP/jenkins-library/pkg/command"
 	"github.com/SAP/jenkins-library/pkg/log"
 	"github.com/SAP/jenkins-library/pkg/maven"
 	"github.com/SAP/jenkins-library/pkg/nexus"
+	"github.com/SAP/jenkins-library/pkg/piperenv"
 	"github.com/SAP/jenkins-library/pkg/piperutils"
 	"github.com/SAP/jenkins-library/pkg/telemetry"
 	"github.com/ghodss/yaml"
@@ -40,7 +41,6 @@ type MtaYaml struct {
 }
 
 func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomData, command execRunner) error {
-
 	projectStructure := piperutils.ProjectStructure{}
 
 	nexusClient := nexus.Upload{Username: config.User, Password: config.Password}
@@ -64,7 +64,9 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 		}
 		if err == nil {
 			//fixme do proper way to find name/path of mta file
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: mtaYaml.ID + ".mtar", Type: "mtar", Classifier: "", ID: config.ArtifactID})
+			mtarFilePath := piperenv.GetParameter(".pipeline/commonPipelineEnvironment", "mtarFilePath")
+			fmt.Println(mtarFilePath)
+			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: mtarFilePath, Type: "mtar", Classifier: "", ID: config.ArtifactID})
 		}
 		if err != nil {
 			log.Entry().WithError(err).Fatal()
@@ -140,11 +142,11 @@ func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 			return err
 		}
 		for _, classifier := range classifiers {
-			fileName := artifactID + "-" + classifier.classifier + "." + classifier.fileType
+			fileName := artifactID + "-" + classifier.Classifier + "." + classifier.FileType
 			if targetFolder != "" {
 				fileName = targetFolder + "/" + fileName
 			}
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: classifier.fileType, Classifier: classifier.classifier, ID: artifactID})
+			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: classifier.FileType, Classifier: classifier.Classifier, ID: artifactID})
 			if err != nil {
 				return err
 			}
@@ -178,8 +180,8 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 }
 
 type classifierDescription struct {
-	classifier string `json:"classifier"`
-	fileType   string `json:"type"`
+	Classifier string `json:"classifier"`
+	FileType   string `json:"type"`
 }
 
 func getClassifiers(classifiersAsJSON string) ([]classifierDescription, error) {
