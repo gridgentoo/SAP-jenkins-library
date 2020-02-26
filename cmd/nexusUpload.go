@@ -136,6 +136,7 @@ func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 			}
 			var finalName string
 			finalName, err = evaluateMavenProperty(pomFile, "project.build.finalName")
+			// TODO: Ignore error, and build finalName as Maven would from artifactId and so on.
 			if err != nil {
 				log.Entry().WithError(err).Fatal()
 			}
