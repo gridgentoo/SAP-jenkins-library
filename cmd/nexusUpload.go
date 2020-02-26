@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"golang.org/x/tools/go/ssa/interp/testdata/src/fmt"
 	"io/ioutil"
@@ -71,18 +72,11 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	}
 
 	if projectStructure.UsesMaven() {
-		// TODO: deployMavenArtifactsToNexus.groovy has "pomPath" in the step configuration, which is then prepended if present
-
-		artifactID, err := evaluateMavenProperty("project.artifactId")
 		if err == nil {
-			err = nexusClient.SetArtifactsVersion(artifactID)
-		}
-		artifactsVersion, err := evaluateMavenProperty("project.version")
-		if err == nil {
-			err = nexusClient.SetArtifactsVersion(artifactsVersion)
+			err = deployMavenArtifacts(&nexusClient, config, "", "target", "")
 		}
 		if err == nil {
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "pom.xml", Type: "pom", Classifier: "", ID: artifactID})
+			err = deployMavenArtifacts(&nexusClient, config, "application", "application/target", config.AdditionalClassifiers)
 		}
 		if err != nil {
 			log.Entry().WithError(err).Fatal()
@@ -95,7 +89,72 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	return nil
 }
 
-func evaluateMavenProperty(expression string) (string, error) {
+func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions, pomPath, targetFolder, additionalClassifiers string) error {
+	var err error
+	var artifactID string
+	var artifactsVersion string
+	var packaging string
+
+	pomFile := "pom.xml"
+	if pomPath != "" {
+		pomFile = pomPath+"/"+pomFile
+	}
+
+	artifactID, err = evaluateMavenProperty(pomFile, "project.artifactId")
+	if err == nil {
+		err = nexusClient.SetArtifactsVersion(artifactID)
+	}
+
+	artifactsVersion, err = evaluateMavenProperty(pomFile, "project.version")
+	if err == nil {
+		err = nexusClient.SetArtifactsVersion(artifactsVersion)
+	}
+
+	if err == nil {
+		err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: pomFile, Type: "pom", Classifier: "", ID: artifactID})
+	}
+
+	packaging, err = evaluateMavenProperty(pomFile, "project.packaging")
+	if err == nil {
+		if packaging != "pom" {
+			if packaging == "" {
+				packaging = "jar"
+			}
+			var finalName string
+			finalName, err = evaluateMavenProperty(pomFile, "project.build.finalName")
+			if err != nil {
+				return err
+			}
+			fileName := finalName + "." + packaging
+			if targetFolder != "" {
+				fileName = targetFolder + "/" + fileName
+			}
+			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: packaging, Classifier: "", ID: artifactID})
+		}
+	}
+
+	if additionalClassifiers != "" {
+		var classifiers []classifierDescription
+		classifiers, err = getClassifiers(additionalClassifiers)
+		if err != nil {
+			return err
+		}
+		for _, classifier := range classifiers {
+			fileName := artifactID + "-" + classifier.classifier + "." + classifier.fileType
+			if targetFolder != "" {
+				fileName = targetFolder + "/" + fileName
+			}
+			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: classifier.fileType, Classifier: classifier.classifier, ID: artifactID})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+func evaluateMavenProperty(pomFile, expression string) (string, error) {
 	execRunner := command.Command{}
 	execRunner.Stdout(ioutil.Discard)
 	execRunner.Stderr(ioutil.Discard)
@@ -103,7 +162,7 @@ func evaluateMavenProperty(expression string) (string, error) {
 	expressionDefine := "-Dexpression="+expression
 
 	options := maven.ExecuteOptions{
-		PomPath:      "",
+		PomPath:      pomFile,
 		Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
 		Defines:      []string{expressionDefine, "-DforceStdout", "-q"},
 		ReturnStdout: true,
@@ -117,3 +176,15 @@ func evaluateMavenProperty(expression string) (string, error) {
 	}
 	return value, nil
 }
+
+type classifierDescription struct {
+	classifier string `json:"classifier"`
+	fileType   string `json:"type"`
+}
+
+func getClassifiers(classifiersAsJSON string) ([]classifierDescription, error) {
+	var classifiers []classifierDescription
+	err := json.Unmarshal([]byte(classifiersAsJSON), &classifiers)
+	return classifiers, err
+}
+
