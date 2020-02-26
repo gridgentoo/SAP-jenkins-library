@@ -99,74 +99,34 @@ func uploadMaven(nexusClient *nexus.Upload, config *nexusUploadOptions) {
 
 func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions, pomPath, targetFolder, additionalClassifiers string) {
 	var err error
-	var groupID string
-	var artifactID string
-	var artifactsVersion string
-	var packaging string
 
-	pomFile := "pom.xml"
-	if pomPath != "" {
-		pomFile = pomPath + "/" + pomFile
-	}
-
-	groupID, err = evaluateMavenProperty(pomFile, "project.groupId")
+	pomFile := composeFilePath(pomPath, "pom", "xml")
+	groupID, err := evaluateMavenProperty(pomFile, "project.groupId")
 	if err == nil {
 		err = nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, groupID)
 	}
-
-	artifactID, err = evaluateMavenProperty(pomFile, "project.artifactId")
+	artifactID, err := evaluateMavenProperty(pomFile, "project.artifactId")
 	if err == nil {
 		err = nexusClient.SetArtifactsVersion(artifactID)
 	}
-
-	artifactsVersion, err = evaluateMavenProperty(pomFile, "project.version")
+	artifactsVersion, err := evaluateMavenProperty(pomFile, "project.version")
 	if err == nil {
 		err = nexusClient.SetArtifactsVersion(artifactsVersion)
 	}
-
 	if err == nil {
-		err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: pomFile, Type: "pom", Classifier: "", ID: artifactID})
+		artifact := nexus.ArtifactDescription{
+			File:       pomFile,
+			Type:       "pom",
+			Classifier: "",
+			ID:         artifactID,
+		}
+		err = nexusClient.AddArtifact(artifact)
 	}
-
-	packaging, err = evaluateMavenProperty(pomFile, "project.packaging")
 	if err == nil {
-		if packaging != "pom" {
-			if packaging == "" {
-				packaging = "jar"
-			}
-			var finalName string
-			finalName, err = evaluateMavenProperty(pomFile, "project.build.finalName")
-			// TODO: Ignore error, and build finalName as Maven would from artifactId and so on.
-			if err != nil {
-				log.Entry().WithError(err).Fatal()
-			}
-			fileName := finalName + "." + packaging
-			if targetFolder != "" {
-				fileName = targetFolder + "/" + fileName
-			}
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: packaging, Classifier: "", ID: artifactID})
-		}
+		err = addTargetArtifact(pomFile, targetFolder, artifactID, nexusClient)
 	}
-	if err != nil {
-		log.Entry().WithError(err).Fatal()
-	}
-
-	if additionalClassifiers != "" {
-		var classifiers []classifierDescription
-		classifiers, err = getClassifiers(additionalClassifiers)
-		if err != nil {
-			log.Entry().WithError(err).Fatal()
-		}
-		for _, classifier := range classifiers {
-			fileName := artifactID + "-" + classifier.Classifier + "." + classifier.FileType
-			if targetFolder != "" {
-				fileName = targetFolder + "/" + fileName
-			}
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: classifier.FileType, Classifier: classifier.Classifier, ID: artifactID})
-			if err != nil {
-				log.Entry().WithError(err).Fatal()
-			}
-		}
+	if err == nil {
+		err = addAdditionalClassifiers(additionalClassifiers, targetFolder, artifactID, nexusClient)
 	}
 
 	if err != nil {
@@ -174,6 +134,66 @@ func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 	}
 
 	nexusClient.UploadArtifacts()
+}
+
+func addTargetArtifact(pomFile, targetFolder, artifactID string, nexusClient *nexus.Upload) error {
+	packaging, err := evaluateMavenProperty(pomFile, "project.packaging")
+	if err != nil {
+		return err
+	}
+	if packaging == "pom" {
+		// Only pom.xml itself is required as artifact
+		return nil
+	}
+	if packaging == "" {
+		packaging = "jar"
+	}
+	finalName, err := evaluateMavenProperty(pomFile, "project.build.finalName")
+	if err != nil || finalName == "" {
+		// TODO: Ignore error, and build finalName as Maven would from artifactId and so on.
+		return err
+	}
+	filePath := composeFilePath(targetFolder, finalName, packaging)
+	artifact := nexus.ArtifactDescription{
+		File:       filePath,
+		Type:       packaging,
+		Classifier: "",
+		ID:         artifactID,
+	}
+	err = nexusClient.AddArtifact(artifact)
+	return nil
+}
+
+func addAdditionalClassifiers(additionalClassifiers, targetFolder, artifactID string, nexusClient *nexus.Upload) error {
+	if additionalClassifiers == "" {
+		return nil
+	}
+	classifiers, err := getClassifiers(additionalClassifiers)
+	if err != nil {
+		return err
+	}
+	for _, classifier := range classifiers {
+		filePath := composeFilePath(targetFolder, artifactID + "-" + classifier.Classifier, classifier.FileType)
+		artifact := nexus.ArtifactDescription{
+			File:       filePath,
+			Type:       classifier.FileType,
+			Classifier: classifier.Classifier,
+			ID:         artifactID,
+		}
+		err = nexusClient.AddArtifact(artifact)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func composeFilePath(folder, name, extension string) string {
+	path := name + "." + extension
+	if folder != "" {
+		path = folder + "/" + path
+	}
+	return path
 }
 
 func evaluateMavenProperty(pomFile, expression string) (string, error) {
@@ -194,7 +214,9 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 		return "", err
 	}
 	if strings.HasPrefix(value, "null object or invalid expression") {
-		return "", errors.New(fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'", expression))
+		return "", errors.New(
+			fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'",
+				expression))
 	}
 	return value, nil
 }
