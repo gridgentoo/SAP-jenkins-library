@@ -19,5 +19,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/testcontainers/testcontainers-go v0.2.0
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	golang.org/x/tools v0.0.0-20200115165105-de0b1760071a
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
