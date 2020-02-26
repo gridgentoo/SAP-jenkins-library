@@ -95,3 +95,13 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	//log.Entry().WithField("LogField", "Log field content").Info("This is just a demo for a simple step.")
 	return nil
 }
+
+func evaluateMavenProperty(property string, command execRunner) (string, error) {
+	options := maven.ExecuteOptions{
+		PomPath:      "",
+		Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
+		Defines:      []string{"-Dexpression=project.artifactId", "-DforceStdout", "-q"},
+		ReturnStdout: true,
+	}
+	return maven.Execute(&options, command)
+}
