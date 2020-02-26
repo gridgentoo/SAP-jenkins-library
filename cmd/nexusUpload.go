@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"errors"
+	"golang.org/x/tools/go/ssa/interp/testdata/src/fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/SAP/jenkins-library/pkg/command"
 	"github.com/SAP/jenkins-library/pkg/log"
@@ -68,22 +71,18 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	}
 
 	if projectStructure.UsesMaven() {
-		//todo read pom
-
 		// TODO: deployMavenArtifactsToNexus.groovy has "pomPath" in the step configuration, which is then prepended if present
 
-		options := maven.ExecuteOptions{
-			PomPath:      "",
-			Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
-			Defines:      []string{"-Dexpression=project.artifactId", "-DforceStdout", "-q"},
-			ReturnStdout: true,
-		}
-		artifactID, err := maven.Execute(&options, command)
+		artifactID, err := evaluateMavenProperty("project.artifactId")
 		if err == nil {
 			err = nexusClient.SetArtifactsVersion(artifactID)
 		}
+		artifactsVersion, err := evaluateMavenProperty("project.version")
 		if err == nil {
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "pom.xml", Type: "pom", Classifier: "", ID: config.ArtifactID})
+			err = nexusClient.SetArtifactsVersion(artifactsVersion)
+		}
+		if err == nil {
+			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "pom.xml", Type: "pom", Classifier: "", ID: artifactID})
 		}
 		if err != nil {
 			log.Entry().WithError(err).Fatal()
@@ -96,12 +95,25 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	return nil
 }
 
-func evaluateMavenProperty(property string, command execRunner) (string, error) {
+func evaluateMavenProperty(expression string) (string, error) {
+	execRunner := command.Command{}
+	execRunner.Stdout(ioutil.Discard)
+	execRunner.Stderr(ioutil.Discard)
+
+	expres￿sionDefine := "-Dexpression="+expression
+
 	options := maven.ExecuteOptions{
 		PomPath:      "",
 		Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
-		Defines:      []string{"-Dexpression=project.artifactId", "-DforceStdout", "-q"},
+		Defines:      []string{sionDefine, "-DforceStdout", "-q"},
 		ReturnStdout: true,
 	}
-	return maven.Execute(&options, command)
+	value, err := maven.Execute(&options, &execRunner)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(value, "null object or invalid expression") {
+		return "", errors.New(fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'", expression))
+	}
+	return value, nil
 }

@@ -79,7 +79,7 @@ func (nexusUpload *Upload) UploadArtifacts() {
 	}
 
 	if nexusUpload.version == "" {
-		nexusUpload.Logger.Fatal("The NexusUpload object needs to be configured by calling SetVersion() first.")
+		nexusUpload.Logger.Fatal("The NexusUpload object needs to be configured by calling SetArtifactsVersion() first.")
 	}
 
 	if len(nexusUpload.artifacts) == 0 {
