@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"fmt"
+
 	"github.com/SAP/jenkins-library/pkg/command"
 	"github.com/SAP/jenkins-library/pkg/log"
 	"github.com/SAP/jenkins-library/pkg/maven"
@@ -29,77 +30,88 @@ func nexusUpload(config nexusUploadOptions, telemetryData *telemetry.CustomData)
 	// Example: step checkmarxExecuteScan.go
 
 	// error situations should stop execution through log.Entry().Fatal() call which leads to an os.Exit(1) in the end
-	err := runNexusUpload(&config, telemetryData, &c)
-	if err != nil {
-		log.Entry().WithError(err).Fatal("step execution failed")
-	}
+	runNexusUpload(&config, telemetryData, &c)
 }
 
-type MtaYaml struct {
-	ID      string `json:"ID"`
-	Version string `json:"version"`
-}
-
-func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomData, command execRunner) error {
+func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomData, command execRunner) {
 	projectStructure := piperutils.ProjectStructure{}
 
 	nexusClient := nexus.Upload{Username: config.User, Password: config.Password}
-	groupID := config.GroupID // TODO... Only expected to be provided for MTA projects, can be empty, though
-	err := nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, groupID)
+
+	if projectStructure.UsesMta() {
+		uploadMTA(&nexusClient, config)
+	} else if projectStructure.UsesMaven() {
+		uploadMaven(&nexusClient, config)
+	} else {
+		log.Entry().Fatal("Unsupported project structure")
+	}
+}
+
+func uploadMTA(nexusClient *nexus.Upload, config *nexusUploadOptions) {
+	if config.GroupID == "" {
+		log.Entry().Fatal("The 'groupID' parameter needs to be provided for MTA projects")
+	}
+	err := nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, config.GroupID)
+	if err == nil {
+		err = setVersionFromMtaYaml(nexusClient)
+	}
+	if err == nil {
+		// TODO: Read artifactID from commonPipelineEnvironment if not given via config
+		// commonPipelineEnvironment.configuration.artifactId
+		err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "mta.yaml", Type: "yaml", Classifier: "", ID: config.ArtifactID})
+	}
+	if err == nil {
+		//TODO: do proper way to find name/path of mta file
+		mtarFilePath := piperenv.GetParameter(".pipeline/commonPipelineEnvironment", "mtarFilePath")
+		fmt.Println(mtarFilePath)
+		err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: mtarFilePath, Type: "mtar", Classifier: "", ID: config.ArtifactID})
+	}
 	if err != nil {
 		log.Entry().WithError(err).Fatal()
 	}
 
-	if projectStructure.UsesMta() {
-		var mtaYaml MtaYaml
-		mtaYamContent, _ := ioutil.ReadFile("mta.yaml")
-		if err == nil {
-			err = yaml.Unmarshal(mtaYamContent, &mtaYaml)
-		}
-		if err == nil {
-			err = nexusClient.SetArtifactsVersion(mtaYaml.Version)
-		}
-		if err == nil {
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "mta.yaml", Type: "yaml", Classifier: "", ID: config.ArtifactID})
-		}
-		if err == nil {
-			//fixme do proper way to find name/path of mta file
-			mtarFilePath := piperenv.GetParameter(".pipeline/commonPipelineEnvironment", "mtarFilePath")
-			fmt.Println(mtarFilePath)
-			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: mtarFilePath, Type: "mtar", Classifier: "", ID: config.ArtifactID})
-		}
-		if err != nil {
-			log.Entry().WithError(err).Fatal()
-		}
-	}
-
-	if projectStructure.UsesMaven() {
-		if err == nil {
-			err = deployMavenArtifacts(&nexusClient, config, "", "target", "")
-		}
-		if err == nil {
-			err = deployMavenArtifacts(&nexusClient, config, "application", "application/target", config.AdditionalClassifiers)
-		}
-		if err != nil {
-			log.Entry().WithError(err).Fatal()
-		}
-	}
-
 	nexusClient.UploadArtifacts()
-
-	//log.Entry().WithField("LogField", "Log field content").Info("This is just a demo for a simple step.")
-	return nil
 }
 
-func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions, pomPath, targetFolder, additionalClassifiers string) error {
+type mtaYaml struct {
+	ID      string `json:"ID"`
+	Version string `json:"version"`
+}
+
+func setVersionFromMtaYaml(nexusClient *nexus.Upload) error {
+	var mtaYaml mtaYaml
+	mtaYamContent, err := ioutil.ReadFile("mta.yaml")
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(mtaYamContent, &mtaYaml)
+	if err != nil {
+		return err
+	}
+	return nexusClient.SetArtifactsVersion(mtaYaml.Version)
+}
+
+func uploadMaven(nexusClient *nexus.Upload, config *nexusUploadOptions) {
+	uploadMavenArtifacts(nexusClient, config, "", "target", "")
+	uploadMavenArtifacts(nexusClient, config, "application", "application/target",
+		config.AdditionalClassifiers)
+}
+
+func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions, pomPath, targetFolder, additionalClassifiers string) {
 	var err error
+	var groupID string
 	var artifactID string
 	var artifactsVersion string
 	var packaging string
 
 	pomFile := "pom.xml"
 	if pomPath != "" {
-		pomFile = pomPath+"/"+pomFile
+		pomFile = pomPath + "/" + pomFile
+	}
+
+	groupID, err = evaluateMavenProperty(pomFile, "project.groupId")
+	if err == nil {
+		err = nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, groupID)
 	}
 
 	artifactID, err = evaluateMavenProperty(pomFile, "project.artifactId")
@@ -125,7 +137,7 @@ func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 			var finalName string
 			finalName, err = evaluateMavenProperty(pomFile, "project.build.finalName")
 			if err != nil {
-				return err
+				log.Entry().WithError(err).Fatal()
 			}
 			fileName := finalName + "." + packaging
 			if targetFolder != "" {
@@ -134,12 +146,15 @@ func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: packaging, Classifier: "", ID: artifactID})
 		}
 	}
+	if err != nil {
+		log.Entry().WithError(err).Fatal()
+	}
 
 	if additionalClassifiers != "" {
 		var classifiers []classifierDescription
 		classifiers, err = getClassifiers(additionalClassifiers)
 		if err != nil {
-			return err
+			log.Entry().WithError(err).Fatal()
 		}
 		for _, classifier := range classifiers {
 			fileName := artifactID + "-" + classifier.Classifier + "." + classifier.FileType
@@ -148,12 +163,16 @@ func deployMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 			}
 			err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: fileName, Type: classifier.FileType, Classifier: classifier.Classifier, ID: artifactID})
 			if err != nil {
-				return err
+				log.Entry().WithError(err).Fatal()
 			}
 		}
 	}
 
-	return err
+	if err != nil {
+		log.Entry().WithError(err).Fatal()
+	}
+
+	nexusClient.UploadArtifacts()
 }
 
 func evaluateMavenProperty(pomFile, expression string) (string, error) {
@@ -161,7 +180,7 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 	execRunner.Stdout(ioutil.Discard)
 	execRunner.Stderr(ioutil.Discard)
 
-	expressionDefine := "-Dexpression="+expression
+	expressionDefine := "-Dexpression=" + expression
 
 	options := maven.ExecuteOptions{
 		PomPath:      pomFile,
@@ -189,4 +208,3 @@ func getClassifiers(classifiersAsJSON string) ([]classifierDescription, error) {
 	err := json.Unmarshal([]byte(classifiersAsJSON), &classifiers)
 	return classifiers, err
 }
-
