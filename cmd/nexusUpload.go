@@ -100,12 +100,12 @@ func evaluateMavenProperty(expression string) (string, error) {
 	execRunner.Stdout(ioutil.Discard)
 	execRunner.Stderr(ioutil.Discard)
 
-	expres￿sionDefine := "-Dexpression="+expression
+	expressionDefine := "-Dexpression="+expression
 
 	options := maven.ExecuteOptions{
 		PomPath:      "",
 		Goals:        []string{"org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate"},
-		Defines:      []string{sionDefine, "-DforceStdout", "-q"},
+		Defines:      []string{expressionDefine, "-DforceStdout", "-q"},
 		ReturnStdout: true,
 	}
 	value, err := maven.Execute(&options, &execRunner)
