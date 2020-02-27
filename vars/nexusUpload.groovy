@@ -82,7 +82,7 @@ void call(Map parameters = [:]) {
                     passwordVariable: 'PIPER_password',
                     usernameVariable: 'PIPER_username'
                 )]) {
-                    sh "./piper nexusUpload"
+                    sh "./piper nexusUpload --verbose"
                 }
             } else {
                 echo "executing without credentials"
