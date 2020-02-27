@@ -69,10 +69,12 @@ void call(Map parameters = [:]) {
             "PIPER_parametersJSON=${toJson(parameters)}",
         ]) {
             // get context configuration
+            echo "reading config"
             Map config = readJSON (text: sh(returnStdout: true, script: "./piper getConfig --contextConfig --stepMetadata '${METADATA_FILE}'"))
 
             // execute step
             if (config.credentialsId) {
+                echo "executing with credentials"
                 withCredentials([usernamePassword(
                     credentialsId: config.credentialsId,
                     passwordVariable: 'PIPER_password',
@@ -81,6 +83,7 @@ void call(Map parameters = [:]) {
                     sh "./piper nexusUpload"
                 }
             } else {
+                echo "executing without credentials"
                 sh "./piper nexusUpload"
             }
         }
