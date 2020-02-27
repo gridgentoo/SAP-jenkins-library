@@ -90,8 +90,7 @@ func getParametersFromConfig(config *ExecuteOptions, client http.Downloader) []s
 	}
 
 	if config.PomPath != "" {
-		pomPathParameter := "--file " + config.PomPath
-		parameters = append(parameters, pomPathParameter)
+		parameters = append(parameters, "--file", config.PomPath)
 	}
 
 	if config.Flags != nil {
