@@ -150,7 +150,8 @@ func addTargetArtifact(pomFile, targetFolder, artifactID string, nexusClient *ne
 	}
 	finalName, err := evaluateMavenProperty(pomFile, "project.build.finalName")
 	if err != nil || finalName == "" {
-		// TODO: Ignore error, and build finalName as Maven would from artifactId and so on.
+		// NOTE: The error should be ignored, and the finalName built as Maven would from artifactId and so on.
+		// But it seems this expression always resolves, even if finalName is nowhere declared in the pom.xml
 		return err
 	}
 	filePath := composeFilePath(targetFolder, finalName, packaging)
@@ -172,6 +173,11 @@ func addAdditionalClassifierArtifacts(additionalClassifiers, targetFolder, artif
 		return err
 	}
 	for _, classifier := range classifiers {
+		if classifier.Classifier == "" || classifier.FileType == "" {
+			return errors.New(
+				fmt.Sprintf("Invalid additional classifier description (classifier: '%s', type: '%s')",
+					classifier.Classifier, classifier.FileType))
+		}
 		filePath := composeFilePath(targetFolder, artifactID + "-" + classifier.Classifier, classifier.FileType)
 		artifact := nexus.ArtifactDescription{
 			File:       filePath,
