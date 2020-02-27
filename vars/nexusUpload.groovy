@@ -72,6 +72,7 @@ void call(Map parameters = [:]) {
         ]) {
             // get context configuration
             echo "reading config"
+            sh 'ls -la'
             Map config = readJSON (text: sh(returnStdout: true, script: "./piper getConfig --contextConfig --stepMetadata '${METADATA_FILE}'"))
 
             // execute step
