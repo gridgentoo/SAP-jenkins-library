@@ -37,7 +37,7 @@ void call(Map parameters = [:]) {
         sh 'git clone https://github.com/SAP/jenkins-library.git -b nexus-upload .piper-git-checkout'
         dir('.piper-git-checkout') {
             dockerExecute(script: this, dockerImage: 'golang:1.13', dockerOptions: '-u 0') {
-                sh 'go build -o piper . && chmod +x piper && mv piper ..'
+                sh 'go build -tags release -o piper . && chmod +x piper && mv piper ..'
             }
         }
         sh 'rm -rf .piper-git-checkout'
@@ -49,7 +49,18 @@ void call(Map parameters = [:]) {
         writeFile(file: METADATA_FILE, text: libraryResource(METADATA_FILE))
 
         // Replace 'artifacts' List with JSON encoded String
-        parameters.artifacts = "${toJson(parameters.artifacts as List)}"
+        if (paramters.artifacts) {
+            parameters.artifacts = "${toJson(parameters.artifacts as List)}"
+        }
+        // Replace 'additionalClassifiers' List with JSON encoded String
+        if (paramters.additionalClassifiers) {
+            parameters.additionalClassifiers = "${toJson(parameters.additionalClassifiers as List)}"
+        }
+        // TODO: This should be handled in the Piper nexusUpload cmd implementation instead!
+        // TODO: But from the code of commonPipelineEnvironment.writeToDisk() it isn't clear to me whether this would be persisted...
+        if (!parameters.artifactId && script.commonPipelineEnvironment.configuration.artifactId) {
+            parameters.artifactId = script.commonPipelineEnvironment.configuration.artifactId
+        }
 
         withEnv([
             "PIPER_parametersJSON=${toJson(parameters)}",

@@ -56,6 +56,10 @@ func uploadMTA(nexusClient *nexus.Upload, config *nexusUploadOptions) {
 		err = setVersionFromMtaYaml(nexusClient)
 	}
 	if err == nil {
+		artifactID := config.ArtifactID
+		if artifactID == "" {
+			artifactID = piperenv.GetParameter(".pipeline/commonPipelineEnvironment/configuration", "artifactId")
+		}
 		// TODO: Read artifactID from commonPipelineEnvironment if not given via config
 		// commonPipelineEnvironment.configuration.artifactId
 		err = nexusClient.AddArtifact(nexus.ArtifactDescription{File: "mta.yaml", Type: "yaml", Classifier: "", ID: config.ArtifactID})
