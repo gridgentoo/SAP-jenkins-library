@@ -64,6 +64,8 @@ void call(Map parameters = [:]) {
             parameters.artifactId = script.commonPipelineEnvironment.configuration.artifactId
         }
 
+        parameters.remove('script')
+
         echo "converting parameters '${parameters}'"
         withEnv([
             "PIPER_parametersJSON=${toJson(parameters)}",
