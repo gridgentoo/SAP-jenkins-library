@@ -160,8 +160,7 @@ func addTargetArtifact(pomFile, targetFolder, artifactID string, nexusClient *ne
 		Classifier: "",
 		ID:         artifactID,
 	}
-	err = nexusClient.AddArtifact(artifact)
-	return nil
+	return nexusClient.AddArtifact(artifact)
 }
 
 func addAdditionalClassifiers(additionalClassifiers, targetFolder, artifactID string, nexusClient *nexus.Upload) error {
