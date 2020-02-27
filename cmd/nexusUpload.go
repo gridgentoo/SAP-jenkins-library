@@ -236,6 +236,9 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 			fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'",
 				expression))
 	}
+	if GeneralConfig.Verbose {
+		log.Entry().Infof("Evaluated expression '%s' in file '%s' as '%s'\n", expression, pomFile, value)
+	}
 	return value, nil
 }
 
