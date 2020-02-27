@@ -34,13 +34,13 @@ void call(Map parameters = [:]) {
 
         echo "nexusUpload parameters: $parameters"
 
-        sh 'git clone https://github.com/SAP/jenkins-library.git -b nexus-upload-maven .piper-git-checkout'
-        dir('.piper-git-checkout') {
-            dockerExecute(script: this, dockerImage: 'golang:1.13', dockerOptions: '-u 0') {
-                sh 'go build -tags release -o piper . && chmod +x piper && mv piper ..'
-            }
-        }
-        sh 'rm -rf .piper-git-checkout'
+        // sh 'git clone https://github.com/SAP/jenkins-library.git -b nexus-upload-maven .piper-git-checkout'
+        // dir('.piper-git-checkout') {
+        //     dockerExecute(script: this, dockerImage: 'golang:1.13', dockerOptions: '-u 0') {
+        //         sh 'go build -tags release -o piper . && chmod +x piper && mv piper ..'
+        //     }
+        // }
+        // sh 'rm -rf .piper-git-checkout'
 
 //        new PiperGoUtils(this, utils).unstashPiperBin()
 //        utils.unstash('pipelineConfigAndTests')
