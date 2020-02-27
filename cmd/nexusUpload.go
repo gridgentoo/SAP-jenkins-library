@@ -39,8 +39,14 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	nexusClient := nexus.Upload{Username: config.User, Password: config.Password}
 
 	if projectStructure.UsesMta() {
+		if GeneralConfig.Verbose {
+			log.Entry().Info("MTA project structure detected")
+		}
 		uploadMTA(&nexusClient, config)
 	} else if projectStructure.UsesMaven() {
+		if GeneralConfig.Verbose {
+			log.Entry().Info("Maven project structure detected")
+		}
 		uploadMaven(&nexusClient, config)
 	} else {
 		log.Entry().Fatal("Unsupported project structure")
@@ -106,6 +112,9 @@ func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 
 	pomFile := composeFilePath(pomPath, "pom", "xml")
 	groupID, err := evaluateMavenProperty(pomFile, "project.groupId")
+	if groupID == "" {
+		groupID = config.GroupID
+	}
 	if err == nil {
 		err = nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, groupID)
 	}
