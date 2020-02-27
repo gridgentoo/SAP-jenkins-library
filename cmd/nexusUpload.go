@@ -126,7 +126,7 @@ func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 		err = addTargetArtifact(pomFile, targetFolder, artifactID, nexusClient)
 	}
 	if err == nil {
-		err = addAdditionalClassifiers(additionalClassifiers, targetFolder, artifactID, nexusClient)
+		err = addAdditionalClassifierArtifacts(additionalClassifiers, targetFolder, artifactID, nexusClient)
 	}
 
 	if err != nil {
@@ -142,7 +142,7 @@ func addTargetArtifact(pomFile, targetFolder, artifactID string, nexusClient *ne
 		return err
 	}
 	if packaging == "pom" {
-		// Only pom.xml itself is required as artifact
+		// Only pom.xml itself is the artifact
 		return nil
 	}
 	if packaging == "" {
@@ -163,7 +163,7 @@ func addTargetArtifact(pomFile, targetFolder, artifactID string, nexusClient *ne
 	return nexusClient.AddArtifact(artifact)
 }
 
-func addAdditionalClassifiers(additionalClassifiers, targetFolder, artifactID string, nexusClient *nexus.Upload) error {
+func addAdditionalClassifierArtifacts(additionalClassifiers, targetFolder, artifactID string, nexusClient *nexus.Upload) error {
 	if additionalClassifiers == "" {
 		return nil
 	}
