@@ -50,10 +50,12 @@ void call(Map parameters = [:]) {
 
         // Replace 'artifacts' List with JSON encoded String
         if (parameters.artifacts) {
+            echo "converting artifacts '${parameters.artifacts}'"
             parameters.artifacts = "${toJson(parameters.artifacts as List)}"
         }
         // Replace 'additionalClassifiers' List with JSON encoded String
         if (parameters.additionalClassifiers) {
+            echo "converting additional classifiers '${parameters.additionalClassifiers}'"
             parameters.additionalClassifiers = "${toJson(parameters.additionalClassifiers as List)}"
         }
         // TODO: This should be handled in the Piper nexusUpload cmd implementation instead!
@@ -62,6 +64,7 @@ void call(Map parameters = [:]) {
             parameters.artifactId = script.commonPipelineEnvironment.configuration.artifactId
         }
 
+        echo "converting parameters '${parameters}'"
         withEnv([
             "PIPER_parametersJSON=${toJson(parameters)}",
         ]) {
