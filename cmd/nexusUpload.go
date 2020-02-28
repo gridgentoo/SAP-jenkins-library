@@ -39,14 +39,14 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	nexusClient := nexus.Upload{Username: config.User, Password: config.Password}
 
 	if projectStructure.UsesMta() {
-		if GeneralConfig.Verbose {
+//		if GeneralConfig.Verbose {
 			log.Entry().Info("MTA project structure detected")
-		}
+//		}
 		uploadMTA(&nexusClient, config)
 	} else if projectStructure.UsesMaven() {
-		if GeneralConfig.Verbose {
+//		if GeneralConfig.Verbose {
 			log.Entry().Info("Maven project structure detected")
-		}
+//		}
 		uploadMaven(&nexusClient, config)
 	} else {
 		log.Entry().Fatal("Unsupported project structure")
@@ -236,9 +236,9 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 			fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'",
 				expression))
 	}
-	if GeneralConfig.Verbose {
+//	if GeneralConfig.Verbose {
 		log.Entry().Infof("Evaluated expression '%s' in file '%s' as '%s'\n", expression, pomFile, value)
-	}
+//	}
 	return value, nil
 }
 
