@@ -39,14 +39,14 @@ func runNexusUpload(config *nexusUploadOptions, telemetryData *telemetry.CustomD
 	nexusClient := nexus.Upload{Username: config.User, Password: config.Password}
 
 	if projectStructure.UsesMta() {
-//		if GeneralConfig.Verbose {
-			log.Entry().Info("MTA project structure detected")
-//		}
+		//		if GeneralConfig.Verbose {
+		log.Entry().Info("MTA project structure detected")
+		//		}
 		uploadMTA(&nexusClient, config)
 	} else if projectStructure.UsesMaven() {
-//		if GeneralConfig.Verbose {
-			log.Entry().Info("Maven project structure detected")
-//		}
+		//		if GeneralConfig.Verbose {
+		log.Entry().Info("Maven project structure detected")
+		//		}
 		uploadMaven(&nexusClient, config)
 	} else {
 		log.Entry().Fatal("Unsupported project structure")
@@ -118,11 +118,14 @@ func uploadMavenArtifacts(nexusClient *nexus.Upload, config *nexusUploadOptions,
 	if err == nil {
 		err = nexusClient.SetBaseURL(config.Url, config.Version, config.Repository, groupID)
 	}
-	artifactID, err := evaluateMavenProperty(pomFile, "project.artifactId")
+	var artifactID string
 	if err == nil {
-		err = nexusClient.SetArtifactsVersion(artifactID)
+		artifactID, err = evaluateMavenProperty(pomFile, "project.artifactId")
 	}
-	artifactsVersion, err := evaluateMavenProperty(pomFile, "project.version")
+	var artifactsVersion string
+	if err == nil {
+		artifactsVersion, err = evaluateMavenProperty(pomFile, "project.version")
+	}
 	if err == nil {
 		err = nexusClient.SetArtifactsVersion(artifactsVersion)
 	}
@@ -191,7 +194,7 @@ func addAdditionalClassifierArtifacts(additionalClassifiers, targetFolder, artif
 				fmt.Sprintf("Invalid additional classifier description (classifier: '%s', type: '%s')",
 					classifier.Classifier, classifier.FileType))
 		}
-		filePath := composeFilePath(targetFolder, artifactID + "-" + classifier.Classifier, classifier.FileType)
+		filePath := composeFilePath(targetFolder, artifactID+"-"+classifier.Classifier, classifier.FileType)
 		artifact := nexus.ArtifactDescription{
 			File:       filePath,
 			Type:       classifier.FileType,
@@ -236,9 +239,9 @@ func evaluateMavenProperty(pomFile, expression string) (string, error) {
 			fmt.Sprintf("Expression could not be resolved, property not found or invalid expression '%s'",
 				expression))
 	}
-//	if GeneralConfig.Verbose {
-		log.Entry().Infof("Evaluated expression '%s' in file '%s' as '%s'\n", expression, pomFile, value)
-//	}
+	//	if GeneralConfig.Verbose {
+	log.Entry().Infof("Evaluated expression '%s' in file '%s' as '%s'\n", expression, pomFile, value)
+	//	}
 	return value, nil
 }
 
