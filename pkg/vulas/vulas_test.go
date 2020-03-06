@@ -248,3 +248,67 @@ func TestLookup(t *testing.T) {
 		assert.Equal(t, "createSpace", vc.vulasSpaceToken)
 	})
 }
+
+func TestVulas_CollectMetricsForInflux(t *testing.T) {
+
+	requestURI := ""
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+
+		requestURI = req.RequestURI
+
+		var response interface{}
+		if http.MethodGet == req.Method {
+			if requestURI == "/test/hubIntegration/apps/lookupSpaceNameByToken%20%28lookupSpaceNameByToken%29GAV1:id1:version1/vulndeps" {
+				response = []Vulnerabilities{Vulnerabilities{VulnScope: "PROVIDED", VulnType: "type1", VulnState: 1}, Vulnerabilities{VulnScope: "PROVIDED", VulnType: "type1.1", VulnState: 1, VulnReachable: true}, Vulnerabilities{VulnScope: "IMPORT", VulnType: "type2", VulnState: 2}, Vulnerabilities{VulnScope: "TEST", VulnType: "type3", VulnState: 4}}
+			}
+			if requestURI == "/test/spaces/lookupSpaceNameByToken" {
+				response = Lookup{SpaceName: "lookupSpaceNameByToken", SpaceToken: "spaceToken"}
+			}
+		}
+
+		var b bytes.Buffer
+		json.NewEncoder(&b).Encode(&response)
+		rw.Write([]byte(b.Bytes()))
+	}))
+	// Close the server when test finishes
+	defer server.Close()
+
+	client := &piperHttp.Client{}
+	client.SetOptions(piperHttp.ClientOptions{})
+	vc := Vulas{vulasSpaceToken: "lookupSpaceNameByToken", svm: SVM{ServerURL: server.URL, Endpoint: "/test"}, client: client, logger: log.Entry().WithField("package", "SAP/jenkins-library/pkg/vulas")}
+
+	type args struct {
+		projectGroup        string
+		vulasProjectVersion string
+		vulasLookupByGAVs   []string
+	}
+	tests := []struct {
+		name string
+		c    *Vulas
+		args args
+	}{
+		{name: "TEST1", c: &vc, args: args{"group1", "version1", []string{"{\"ProjectGroup\": \"GAV1\", \"Artifact\": \"id1\"}"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.c.CollectMetricsForInflux(tt.args.projectGroup, tt.args.vulasProjectVersion, tt.args.vulasLookupByGAVs)
+			assert.Equal(t, "4", got["overall"])
+			assert.Equal(t, "type1;type1.1;type2;type3;", got["overall_cve"])
+			assert.Equal(t, "1", got["reachable"])
+			assert.Equal(t, "type1.1;", got["reachable_cve"])
+			assert.Equal(t, "2", got["PROVIDED"])
+			assert.Equal(t, "type1;type1.1;", got["PROVIDED_cve"])
+			assert.Equal(t, "1", got["IMPORT"])
+			assert.Equal(t, "type2;", got["IMPORT_cve"])
+			assert.Equal(t, "1", got["TEST"])
+			assert.Equal(t, "type3;", got["TEST_cve"])
+			assert.Equal(t, "2", got["testProvided"])
+			assert.Equal(t, "type1;type1.1;", got["testProvided_cve"])
+			assert.Equal(t, "1", got["triaged"])
+			assert.Equal(t, "type3;", got["triaged_cve"])
+			assert.Equal(t, "1", got["vulnerability"])
+			assert.Equal(t, "type2;", got["vulnerability_cve"])
+
+		})
+	}
+}

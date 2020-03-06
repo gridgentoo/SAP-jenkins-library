@@ -1,4 +1,4 @@
-package piperutils
+package descriptor
 
 import (
 	"os"
@@ -24,13 +24,25 @@ func TestGetMavenGAV(t *testing.T) {
 		command.ExecCommand = helperCommand
 		defer func() { command.ExecCommand = exec.Command }()
 
-		s := command.Command{}
+		c := command.Command{}
 
-		descriptor, err := GetMavenGAV("./testdata/test_pom.xml", s)
+		descriptor, err := GetMavenGAV("./testdata/test_pom.xml", c)
 
 		assert.Nil(t, err)
-		assert.Equal(t, descriptor.GroupID, "test.groupID")
-		assert.Equal(t, descriptor.ArtifactID, "test-articatID")
-		assert.Equal(t, descriptor.Version, "1.0.0")
+		assert.Equal(t, "test.groupID", descriptor.GroupID)
+		assert.Equal(t, "test-articatID", descriptor.ArtifactID)
+		assert.Equal(t, "1.0.0", descriptor.Version)
+	})
+}
+
+func TestGetPipGAV(t *testing.T) {
+
+	t.Run("test shell", func(t *testing.T) {
+
+		descriptor, err := getPipGAV("./testdata/setup.py")
+
+		assert.Nil(t, err)
+		assert.Equal(t, "some-test", descriptor.Name)
+		assert.Equal(t, "1.0.0-SNAPSHOT", descriptor.Version)
 	})
 }

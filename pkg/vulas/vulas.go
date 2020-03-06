@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//Vulas ist the vulas client which is used by the step
+//Options used as options for the vulas client
 type Options struct {
 	ServerURL       string
 	Svm             SVM
@@ -25,7 +25,7 @@ type Options struct {
 	Logger          *logrus.Entry
 }
 
-//Vulas ist the vulas client which is used by the step
+//Vulas ist the vulas client
 type Vulas struct {
 	serverURL       string
 	tenantToken     string
@@ -37,32 +37,40 @@ type Vulas struct {
 	logger          *logrus.Entry
 }
 
+//SVM parameters
 type SVM struct {
 	ServerURL         string
 	Endpoint          string
 	ExemptionFileName string
-	CredentialsId     string
+	CredentialsID     string
 }
 
+//SVMWorkspace the workspace
 type SVMWorkspace struct {
 	Workspace SVMToken `json:"workspace,omitempty"`
 }
 
+//SVMToken the token
 type SVMToken struct {
 	Token string `json:"token,omitempty"`
 }
 
+//Lookup the lookup object
 type Lookup struct {
 	TenantToken string `json:"tenantToken"`
 	SpaceName   string `json:"spaceName"`
 	SpaceToken  string `json:"spaceToken"`
 }
 
+//Vulnerabilities the vulnerabilities object
 type Vulnerabilities struct {
-	VulnScope string `json:"scope, omitempty"`
-	VulnType  string `json:"type, omitempty"`
+	VulnReachable bool   `json:"reachable, omitempty"`
+	VulnState     int    `json:"state, omitempty"`
+	VulnScope     string `json:"scope, omitempty"`
+	VulnType      string `json:"type, omitempty"`
 }
 
+//Space the space struct
 type Space struct {
 	Name                string          `json:"spaceName"`
 	Description         string          `json:"spaceDescription"`
@@ -73,12 +81,20 @@ type Space struct {
 	Properties          SpaceProperties `json:"properties"`
 }
 
+//SpaceProperties the properties for the space
 type SpaceProperties struct {
 	Name   string `json:"name"`
 	Source string `json:"source"`
 	Value  string `json:"value"`
 }
 
+//GAV the GAV struct
+type GAV struct {
+	ProjectGroup string `json:"projectGroup"`
+	Artifact     string `json:"artifact"`
+}
+
+//SetOptions the options for the client
 func (c *Vulas) SetOptions(options Options) {
 	c.serverURL = options.ServerURL
 	c.client = &piperHttp.Client{}
@@ -124,6 +140,7 @@ func (c *Vulas) mapToSpace(spaceStr string) *Space {
 	return spaceObj
 }
 
+//FetchExcemptionFile fetch the excemption file
 func (c *Vulas) FetchExcemptionFile(targetPath string) *io.ReadCloser {
 
 	c.initialize()
@@ -341,4 +358,88 @@ func (c *Vulas) mapResponseToStruct(r io.ReadCloser, response interface{}) {
 			c.logger.WithError(err).Fatalf("Error during decode response: %v", newStr)
 		}
 	}
+}
+
+func (c *Vulas) collectVulnerabilities(projectGroup, vulasProjectVersion string, vulasLookupByGAVs []string) []Vulnerabilities {
+
+	if len(vulasLookupByGAVs) > 0 {
+		var vulnerabilities []Vulnerabilities
+
+		for _, vuln := range vulasLookupByGAVs {
+
+			gav := new(GAV)
+			err := json.Unmarshal([]byte(vuln), gav)
+			if err != nil {
+				c.logger.WithError(err).Fatal("Error during parsing the vulasLookupGAV")
+			}
+			vulns := c.lookupVulnerabilitiesByGAV(fmt.Sprintf("%v:%v:%v", gav.ProjectGroup, gav.Artifact, vulasProjectVersion))
+			vulnerabilities = append(vulnerabilities, vulns...)
+		}
+		return vulnerabilities
+	}
+	return c.lookupVulnerabilities()
+}
+
+//CollectMetricsForInflux collects the metrics for the influx reporting
+func (c *Vulas) CollectMetricsForInflux(projectGroup, vulasProjectVersion string, vulasLookupByGAVs []string) map[string]string {
+
+	var mInt map[string]int = make(map[string]int)
+	mInt["triaged"] = 0
+	mInt["vulnerability"] = 0
+	mInt["testProvided"] = 0
+	mInt["reachable"] = 0
+	mInt["overall"] = 0
+
+	var mStr map[string]string = make(map[string]string)
+	mStr["triaged_cve"] = ""
+	mStr["vulnerability_cve"] = ""
+	mStr["testProvided_cve"] = ""
+	mStr["reachable_cve"] = ""
+	mStr["overall_cve"] = ""
+
+	vulnerabilities := c.collectVulnerabilities(projectGroup, vulasProjectVersion, vulasLookupByGAVs)
+
+	for _, item := range vulnerabilities {
+
+		mInt["overall"]++
+		mStr["overall_cve"] += fmt.Sprintf("%v;", item.VulnType)
+		if item.VulnReachable {
+			mInt["reachable"]++
+			mStr["reachable_cve"] += fmt.Sprintf("%v;", item.VulnType)
+		}
+
+		if mInt[item.VulnScope] <= 0 {
+			mInt[item.VulnScope] = 1
+		} else {
+			mInt[item.VulnScope]++
+		}
+
+		cveScope := fmt.Sprintf("%v_cve", item.VulnScope)
+		if len(mStr[cveScope]) <= 0 {
+			mStr[cveScope] = fmt.Sprintf("%v%v;", mStr[cveScope], item.VulnType)
+		} else {
+			mStr[cveScope] += fmt.Sprintf("%v;", item.VulnType)
+		}
+
+		switch item.VulnState {
+		case 1:
+			mInt["testProvided"]++
+			mStr["testProvided_cve"] += fmt.Sprintf("%v;", item.VulnType)
+			break
+		case 2:
+			mInt["vulnerability"]++
+			mStr["vulnerability_cve"] += fmt.Sprintf("%v;", item.VulnType)
+			break
+		case 4:
+			mInt["triaged"]++
+			mStr["triaged_cve"] += fmt.Sprintf("%v;", item.VulnType)
+			break
+		}
+	}
+
+	for k, v := range mInt {
+		mStr[k] = fmt.Sprintf("%v", v)
+	}
+
+	return mStr
 }

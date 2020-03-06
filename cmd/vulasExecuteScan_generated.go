@@ -17,6 +17,8 @@ type vulasExecuteScanOptions struct {
 	PythonVersion              string   `json:"pythonVersion,omitempty"`
 	BuildDescriptorFile        string   `json:"buildDescriptorFile,omitempty"`
 	SvmEndpoint                string   `json:"svmEndpoint,omitempty"`
+	VulasProjectVersion        string   `json:"vulasProjectVersion,omitempty"`
+	VulasReportName            string   `json:"vulasReportName,omitempty"`
 	VulasVersionMapping        string   `json:"vulasVersionMapping,omitempty"`
 	SvmServerURL               string   `json:"svmServerUrl,omitempty"`
 	VulasNightlySchedule       string   `json:"vulasNightlySchedule,omitempty"`
@@ -29,12 +31,14 @@ type vulasExecuteScanOptions struct {
 	VulasPurgeVersions         bool     `json:"vulasPurgeVersions,omitempty"`
 	VulasCycleCommand          string   `json:"vulasCycleCommand,omitempty"`
 	VulasPurgeVersionsKeepLast string   `json:"vulasPurgeVersionsKeepLast,omitempty"`
+	Pip                        string   `json:"pip,omitempty"`
 	PythonCli                  string   `json:"pythonCli,omitempty"`
 	PythonSources              []string `json:"pythonSources,omitempty"`
 	VulasNightlyCommand        string   `json:"vulasNightlyCommand,omitempty"`
 	BuildDescriptorExcludeList string   `json:"buildDescriptorExcludeList,omitempty"`
 	SvmExemptionFileName       string   `json:"svmExemptionFileName,omitempty"`
-	VulasRunNightly            string   `json:"vulasRunNightly,omitempty"`
+	VulasProperty              string   `json:"vulasProperty,omitempty"`
+	VulasRunNightly            bool     `json:"vulasRunNightly,omitempty"`
 	VulasSpaceToken            string   `json:"vulasSpaceToken,omitempty"`
 	PythonInstallCommand       string   `json:"pythonInstallCommand,omitempty"`
 	ScanType                   string   `json:"scanType,omitempty"`
@@ -44,6 +48,7 @@ type vulasExecuteScanOptions struct {
 type vulasExecuteScanInflux struct {
 	vulas_data struct {
 		fields struct {
+			overall                          string
 			overall_cve                      string
 			proved_reachable                 string
 			proved_reachable_cve             string
@@ -53,6 +58,18 @@ type vulasExecuteScanInflux struct {
 			triaged_vulnerabilities_cve      string
 			testProvided_vulnerabilities     string
 			testProvided_vulnerabilities_cve string
+			IMPORT                           string
+			IMPORT_cve                       string
+			SYSTEM                           string
+			SYSTEM_cve                       string
+			TEST                             string
+			TEST_cve                         string
+			RUNTIME                          string
+			RUNTIME_cve                      string
+			PROVIDED                         string
+			PROVIDED_cve                     string
+			COMPILE                          string
+			COMPILE_cve                      string
 		}
 		tags struct {
 		}
@@ -66,6 +83,7 @@ func (i *vulasExecuteScanInflux) persist(path, resourceName string) {
 		name        string
 		value       string
 	}{
+		{valType: config.InfluxField, measurement: "vulas_data", name: "overall", value: i.vulas_data.fields.overall},
 		{valType: config.InfluxField, measurement: "vulas_data", name: "overall_cve", value: i.vulas_data.fields.overall_cve},
 		{valType: config.InfluxField, measurement: "vulas_data", name: "proved_reachable", value: i.vulas_data.fields.proved_reachable},
 		{valType: config.InfluxField, measurement: "vulas_data", name: "proved_reachable_cve", value: i.vulas_data.fields.proved_reachable_cve},
@@ -75,6 +93,18 @@ func (i *vulasExecuteScanInflux) persist(path, resourceName string) {
 		{valType: config.InfluxField, measurement: "vulas_data", name: "triaged_vulnerabilities_cve", value: i.vulas_data.fields.triaged_vulnerabilities_cve},
 		{valType: config.InfluxField, measurement: "vulas_data", name: "testProvided_vulnerabilities", value: i.vulas_data.fields.testProvided_vulnerabilities},
 		{valType: config.InfluxField, measurement: "vulas_data", name: "testProvided_vulnerabilities_cve", value: i.vulas_data.fields.testProvided_vulnerabilities_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "IMPORT", value: i.vulas_data.fields.IMPORT},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "IMPORT_cve", value: i.vulas_data.fields.IMPORT_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "SYSTEM", value: i.vulas_data.fields.SYSTEM},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "SYSTEM_cve", value: i.vulas_data.fields.SYSTEM_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "TEST", value: i.vulas_data.fields.TEST},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "TEST_cve", value: i.vulas_data.fields.TEST_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "RUNTIME", value: i.vulas_data.fields.RUNTIME},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "RUNTIME_cve", value: i.vulas_data.fields.RUNTIME_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "PROVIDED", value: i.vulas_data.fields.PROVIDED},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "PROVIDED_cve", value: i.vulas_data.fields.PROVIDED_cve},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "COMPILE", value: i.vulas_data.fields.COMPILE},
+		{valType: config.InfluxField, measurement: "vulas_data", name: "COMPILE_cve", value: i.vulas_data.fields.COMPILE_cve},
 	}
 
 	errCount := 0
@@ -168,6 +198,8 @@ func addVulasExecuteScanFlags(cmd *cobra.Command, stepConfig *vulasExecuteScanOp
 	cmd.Flags().StringVar(&stepConfig.PythonVersion, "pythonVersion", "python3", "The Python version to be used, either `'python2'` or `'python3'`")
 	cmd.Flags().StringVar(&stepConfig.BuildDescriptorFile, "buildDescriptorFile", os.Getenv("PIPER_buildDescriptorFile"), "Path to the build descriptor file addressing the module/folder to be scanned. Defaults are for scanType=`maven`: `./pom.xml`, scanType=`pip`: `./setup.py`, scanType=`mta`: determined automatically")
 	cmd.Flags().StringVar(&stepConfig.SvmEndpoint, "svmEndpoint", "/SVM/services", "The REST API endpoint of the SVM server")
+	cmd.Flags().StringVar(&stepConfig.VulasProjectVersion, "vulasProjectVersion", os.Getenv("PIPER_vulasProjectVersion"), "The vulas project version")
+	cmd.Flags().StringVar(&stepConfig.VulasReportName, "vulasReportName", os.Getenv("PIPER_vulasReportName"), "The name of the Vulas report")
 	cmd.Flags().StringVar(&stepConfig.VulasVersionMapping, "vulasVersionMapping", os.Getenv("PIPER_vulasVersionMapping"), "A map i.e. `['setup.py': '0.17']` to support overrides of versions reported into the Vulas backend. The key of each of the entries is the workspace-relative path to the build descriptor and the value is the version string to be used for reporting")
 	cmd.Flags().StringVar(&stepConfig.SvmServerURL, "svmServerUrl", "https://svmprodw8563e4f1.int.sap.hana.ondemand.com", "The URL of the SVM server")
 	cmd.Flags().StringVar(&stepConfig.VulasNightlySchedule, "vulasNightlySchedule", os.Getenv("PIPER_vulasNightlySchedule"), "")
@@ -180,12 +212,14 @@ func addVulasExecuteScanFlags(cmd *cobra.Command, stepConfig *vulasExecuteScanOp
 	cmd.Flags().BoolVar(&stepConfig.VulasPurgeVersions, "vulasPurgeVersions", true, "Whether old versions of the scanned artifact should be purged/deleted in the Vulas backend.")
 	cmd.Flags().StringVar(&stepConfig.VulasCycleCommand, "vulasCycleCommand", "-DskipTests ${vulasProperty} ${vulasPlugin}:clean compile ${vulasPlugin}:app install", "The command used to execute the Maven scan for every commit to the relevant branch")
 	cmd.Flags().StringVar(&stepConfig.VulasPurgeVersionsKeepLast, "vulasPurgeVersionsKeepLast", "5", "The numnber of versions to be kept starting from the most recent ones")
+	cmd.Flags().StringVar(&stepConfig.Pip, "pip", os.Getenv("PIPER_pip"), "The pip version to be used, either `'pip2'` or `'pip3'`")
 	cmd.Flags().StringVar(&stepConfig.PythonCli, "pythonCli", os.Getenv("PIPER_pythonCli"), "Whether the Vulas Python CLI is to used for scanning")
 	cmd.Flags().StringSliceVar(&stepConfig.PythonSources, "pythonSources", []string{""}, "The list of source directories which will be added to Vulas scan config in case of a Python scan")
 	cmd.Flags().StringVar(&stepConfig.VulasNightlyCommand, "vulasNightlyCommand", "-T 1C -Dmaven.test.failure.ignore=true -Djacoco.skip=true ${vulasProperty} ${vulasPlugin}:clean compile ${vulasPlugin}:app ${vulasPlugin}:a2c ${vulasPlugin}:prepare-vulas-agent install ${vulasPlugin}:upload ${vulasPlugin}:t2c", "The command used to execute the Maven scan performing a reachability analysis")
 	cmd.Flags().StringVar(&stepConfig.BuildDescriptorExcludeList, "buildDescriptorExcludeList", os.Getenv("PIPER_buildDescriptorExcludeList"), "Build descriptor files to exclude modules from being scanned")
 	cmd.Flags().StringVar(&stepConfig.SvmExemptionFileName, "svmExemptionFileName", "vulas-exemptionsFromSvm.properties", "The name used to create the Vulas properties file")
-	cmd.Flags().StringVar(&stepConfig.VulasRunNightly, "vulasRunNightly", os.Getenv("PIPER_vulasRunNightly"), "Defines which kind of scan is being executed. When setting it to `true` and running manual or scheduled scans a reachability analysis will be performed whereas `false` will do a simple detection on the library level. Setting `true` on a build triggered by an SCM change will *not* switch to always performing a reachability analysis to allow the pipeline to automatically alternate between library level and reachability analysis. When staying with the default value `false` only library detection will happen, so to opt-in for reachability analysis - the former default - you need to set `true`.")
+	cmd.Flags().StringVar(&stepConfig.VulasProperty, "vulasProperty", "-Dvulas", "TODO")
+	cmd.Flags().BoolVar(&stepConfig.VulasRunNightly, "vulasRunNightly", false, "Defines which kind of scan is being executed. When setting it to `true` and running manual or scheduled scans a reachability analysis will be performed whereas `false` will do a simple detection on the library level. Setting `true` on a build triggered by an SCM change will *not* switch to always performing a reachability analysis to allow the pipeline to automatically alternate between library level and reachability analysis. When staying with the default value `false` only library detection will happen, so to opt-in for reachability analysis - the former default - you need to set `true`.")
 	cmd.Flags().StringVar(&stepConfig.VulasSpaceToken, "vulasSpaceToken", os.Getenv("PIPER_vulasSpaceToken"), "The token of the workspace created in the Vulas backend, if not provided Piper will try to manage the workspace based on the `ppmsID` or the group ID of the project being analysed")
 	cmd.Flags().StringVar(&stepConfig.PythonInstallCommand, "pythonInstallCommand", "${pip} install --user --upgrade --index-url http://nexus.wdf.sap.corp:8081/nexus/content/groups/build.snapshots.pypi/simple/ --trusted-host nexus.wdf.sap.corp --no-cache-dir setuptools vulas-plugin-setuptools .", "The additional install command issued to initialize the Python environment")
 	cmd.Flags().StringVar(&stepConfig.ScanType, "scanType", "maven", "The type of scan to execute which can be `'maven'`, `'pip'`, or `'mta'`")
@@ -217,6 +251,22 @@ func vulasExecuteScanMetadata() config.StepData {
 					},
 					{
 						Name:        "svmEndpoint",
+						ResourceRef: []config.ResourceReference{},
+						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
+						Type:        "string",
+						Mandatory:   false,
+						Aliases:     []config.Alias{},
+					},
+					{
+						Name:        "vulasProjectVersion",
+						ResourceRef: []config.ResourceReference{},
+						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
+						Type:        "string",
+						Mandatory:   false,
+						Aliases:     []config.Alias{},
+					},
+					{
+						Name:        "vulasReportName",
 						ResourceRef: []config.ResourceReference{},
 						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
 						Type:        "string",
@@ -320,6 +370,14 @@ func vulasExecuteScanMetadata() config.StepData {
 						Aliases:     []config.Alias{},
 					},
 					{
+						Name:        "pip",
+						ResourceRef: []config.ResourceReference{},
+						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
+						Type:        "string",
+						Mandatory:   false,
+						Aliases:     []config.Alias{},
+					},
+					{
 						Name:        "pythonCli",
 						ResourceRef: []config.ResourceReference{},
 						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
@@ -360,10 +418,18 @@ func vulasExecuteScanMetadata() config.StepData {
 						Aliases:     []config.Alias{},
 					},
 					{
-						Name:        "vulasRunNightly",
+						Name:        "vulasProperty",
 						ResourceRef: []config.ResourceReference{},
 						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
 						Type:        "string",
+						Mandatory:   false,
+						Aliases:     []config.Alias{},
+					},
+					{
+						Name:        "vulasRunNightly",
+						ResourceRef: []config.ResourceReference{},
+						Scope:       []string{"PARAMETERS", "STAGES", "STEPS"},
+						Type:        "bool",
 						Mandatory:   false,
 						Aliases:     []config.Alias{},
 					},

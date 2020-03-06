@@ -69,6 +69,20 @@ spec:
       - STAGES
       - STEPS
       default: /SVM/services
+    - name: vulasProjectVersion
+      type: string
+      description: The vulas project version
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+    - name: vulasReportName
+      type: string
+      description: The name of the Vulas report
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
     - name: vulasVersionMapping
       type: string
       description: 'A map i.e. `[''setup.py'': ''0.17'']` to support overrides of
@@ -117,7 +131,7 @@ spec:
       - STEPS
       default: /backend
     - name: vulasLookupByGAVs
-      type: string
+      type: []
       description: list of ArtifactIds to be looked up
       scope:
       - PARAMETERS
@@ -170,6 +184,13 @@ spec:
       - STAGES
       - STEPS
       default: 5
+    - name: pip
+      type: string
+      description: The pip version to be used, either `'pip2'` or `'pip3'` 
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
     - name: pythonCli
       type: string
       description: Whether the Vulas Python CLI is to used for scanning
@@ -209,8 +230,16 @@ spec:
       - STAGES
       - STEPS
       default: vulas-exemptionsFromSvm.properties
-    - name: vulasRunNightly
+    - name: vulasProperty
       type: string
+      description: TODO
+      scope:
+      - PARAMETERS
+      - STAGES
+      - STEPS
+      default: -Dvulas
+    - name: vulasRunNightly
+      type: bool
       description: Defines which kind of scan is being executed. When setting it to `true` and running manual or scheduled scans a reachability analysis will be performed whereas `false` will do a simple detection on the library level. Setting `true` on a build triggered by an SCM change will *not* switch to always performing a reachability analysis to allow the pipeline to automatically alternate between library level and reachability analysis. When staying with the default value `false` only library detection will happen, so to opt-in for reachability analysis - the former default - you need to set `true`.
       scope:
       - PARAMETERS
@@ -261,6 +290,7 @@ spec:
         params:
           - name: vulas_data
             fields:
+              - name: overall
               - name: overall_cve
               - name: proved_reachable
               - name: proved_reachable_cve
@@ -270,3 +300,15 @@ spec:
               - name: triaged_vulnerabilities_cve
               - name: testProvided_vulnerabilities
               - name: testProvided_vulnerabilities_cve
+              - name: IMPORT
+              - name: IMPORT_cve
+              - name: SYSTEM
+              - name: SYSTEM_cve
+              - name: TEST
+              - name: TEST_cve
+              - name: RUNTIME
+              - name: RUNTIME_cve
+              - name: PROVIDED
+              - name: PROVIDED_cve
+              - name: COMPILE
+              - name: COMPILE_cve

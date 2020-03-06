@@ -1,19 +1,16 @@
+import com.sap.piper.DescriptorUtils
 import com.cloudbees.groovy.cps.NonCPS
-import com.sap.piper.GenerateDocumentation
-import com.sap.piper.internal.Deprecate
-import com.sap.piper.internal.JenkinsUtils
+import com.sap.piper.JenkinsUtils
 import com.sap.icd.jenkins.Utils
-import com.sap.piper.internal.ConfigurationHelper
+import com.sap.piper.ConfigurationHelper
 import com.sap.piper.internal.Notify
-import com.sap.piper.internal.integration.SoftwareVulnerabilityMonitor
-import com.sap.piper.internal.integration.Vulas
-import com.sap.piper.internal.mta.MtaMultiplexer
+import com.sap.piper.mta.MtaMultiplexer
 
 import groovy.transform.Field
 import groovy.text.GStringTemplateEngine
 import hudson.AbortException
 
-import static com.sap.piper.internal.Prerequisites.checkScript
+import static com.sap.piper.Prerequisites.checkScript
 
 @Field String STEP_NAME = 'executeVulasScan'
 @Field Set GENERAL_CONFIG_KEYS = [
@@ -59,7 +56,7 @@ import static com.sap.piper.internal.Prerequisites.checkScript
     /** The stash content to be used for populating the workspace */
     'stashContent',
     /**
-     * The credentials used to download the [Vulas exemption file from the Software Vulnerability Monitor (SVM)](https://wiki.wdf.sap.corp/wiki/display/osssec/Technical+User+generation+for+Vulas+Exemptions).
+     * The credentials used to download the Vulas exemption file from the Software Vulnerability Monitor (SVM).
      * When enabling this feature, please make sure to remove the `vulas.report.exceptionExcludeBugs` and respective audit properties from the Vulas configuration file residing in your repository. Otherwise
      * the newly maintained exemptions from SVM might be ignored. Your previously maintained audits are already part of the exemption file being downloaded from SVM so there is not additional migration requirement.
      * Please do not simply delete your existing `vulas-custom.properties` file unless you have ensured that it does not supply any additional configurations/customizations to the Vulas scan and has only been used
@@ -110,8 +107,7 @@ import static com.sap.piper.internal.Prerequisites.checkScript
 
 /**
  * Vulas is a program analysis tool that helps you identify, assess and mitigate vulnerabilities in the open-source dependencies of Java and Python applications.
- * In future it is planned to support even more programming languages i.e. Javascript with this tool. For a full list of supported and recommended languages
- * please have a look at the [OS3 JAM Tools Overview Page](https://jam4.sapjam.com/groups/XgeUs0CXItfeWyuI4k7lM3/overview_page/VpPnhWUTipYV4eg57rSmXk).
+ * In future it is planned to support even more programming languages i.e. Javascript with this tool.
  *
  * !!! info
  *     Please update your Vulas version to the most recent [release](https://github.com/SAP/vulnerability-assessment-tool/releases).
@@ -151,12 +147,11 @@ import static com.sap.piper.internal.Prerequisites.checkScript
 @GenerateDocumentation
 void call(Map parameters = [:]) {
     handlePipelineStepErrors (stepName: STEP_NAME, stepParameters: parameters,
-        libraryDocumentationUrl: 'https://github.wdf.sap.corp/pages/ContinuousDelivery/piper-doc/',
-        libraryRepositoryUrl: 'https://github.wdf.sap.corp/ContinuousDelivery/piper-library/'
     ) {
         def script = checkScript(this, parameters) ?: this
         def utils = parameters.juStabUtils ?: new Utils()
         def jenkinsUtils = parameters.jenkinsUtilsStub ?: new JenkinsUtils()
+         def descriptorUtils = parameters.descriptorUtilsStub ?: new DescriptorUtils()
 
         // load default & individual configuration
         Map config = ConfigurationHelper
@@ -215,44 +210,40 @@ void call(Map parameters = [:]) {
             stepParam3: config.ppmsID
         ])
 
-        def vulas = parameters.vulasStub ?: new Vulas(script, utils, config)
-        def svm = parameters.svmStub ?: new SoftwareVulnerabilityMonitor(script, utils, config)
-
         def path
         def vulasReportName
         def buildDescriptor
         def vulasProjectVersion
 
-        //do the scan
 	    try {
             config.stashContent = utils.unstashAll(config.stashContent)
 
             if (config.scanType == 'pip') {
-                buildDescriptor = utils.getPipGAV(config.buildDescriptorFile)
+                buildDescriptor = descriptorUtils.getPipGAV(config.buildDescriptorFile) // available on GO side
                 buildDescriptor['group'] = buildDescriptor['artifact']
-                vulasProjectVersion = getProjectVersion(config, buildDescriptor)
+                vulasProjectVersion = getProjectVersion(config, buildDescriptor) //available on go side
                 path = config.buildDescriptorFile.replaceAll('setup.py', '')
                 if (config.pythonCli)
                     path += "vulas-cli/"
-                vulasReportName = "Vulas Report ${path.replaceFirst('\\./', '')}"
+                vulasReportName = "Vulas Report ${path.replaceFirst('\\./', '')}" //transfer from GO to Groovy
                 config.projectGroup = buildDescriptor['group']
                 if (config.vulasLookupByGAVs != false && !config.vulasLookupByGAVs) config.vulasLookupByGAVs = [].plus(buildDescriptor['artifact'])
-                config.vulasSpaceToken = vulas.initializeSpaceToken()
-                executePythonScan(script, config, svm, vulasProjectVersion, buildDescriptor)
+                config.vulasSpaceToken = vulas.initializeSpaceToken() //available on GO side
+                executePythonScan(script, config, svm, vulasProjectVersion, buildDescriptor) //available on go side
             } else {
-                buildDescriptor = utils.readMavenGAV(config.buildDescriptorFile)
-                vulasProjectVersion = getProjectVersion(config, buildDescriptor)
-                path = config.buildDescriptorFile.replaceAll('pom.xml', '')
-                if ((jenkinsUtils.isJobStartedByTimer() || jenkinsUtils.isJobStartedByUser()) && config.vulasRunNightly) {
-                    vulasReportName = "Vulas Nightly Report ${path.replaceFirst('\\./', '')}"
+                buildDescriptor = descriptorUtils.readMavenGAV(config.buildDescriptorFile) //available on go side
+                vulasProjectVersion = getProjectVersion(config, buildDescriptor) //available on go side
+                path = config.buildDescriptorFile.replaceAll('pom.xml', '') //transfer from go to groovy side
+                if ((jenkinsUtils.isJobStartedByTimer() default false (false user true time) || jenkinsUtils.isJobStartedByUser()) && config.vulasRunNightly) {
+                    vulasReportName = "Vulas Nightly Report ${path.replaceFirst('\\./', '')}" //transfer from go to groovy side
                 } else {
                     vulasReportName = "Vulas Report ${path.replaceFirst('\\./', '')}"
-                    vulasProjectVersion = "${vulasProjectVersion}-SNAPSHOT"
+                    vulasProjectVersion = "${vulasProjectVersion}-SNAPSHOT" //transfer from go to groovy side
                 }
                 config.projectGroup = buildDescriptor['group']
                 if (config.vulasLookupByGAVs != false && !config.vulasLookupByGAVs) config.vulasLookupByGAVs = [].plus(buildDescriptor['artifact'])
                 config.vulasSpaceToken = vulas.initializeSpaceToken()
-                executeMavenScan(script, config, utils, svm, jenkinsUtils, vulasProjectVersion)
+                executeMavenScan(script, config, utils, svm, jenkinsUtils, vulasProjectVersion) //available on go side
             }
 
             publishReport(vulasReportName, path)
@@ -269,84 +260,6 @@ void call(Map parameters = [:]) {
             def error = extractStacktraceFromException(e)
             Notify.error(this, "Vulas scan failed due to a severe error. Please see the log for details: ${error}")
         }
-        finally {
-            reportMetricsToInflux(script, vulas, config.projectGroup, vulasProjectVersion, config.vulasLookupByGAVs)
-        }
-    }
-}
-
-void reportMetricsToInflux(script, vulas, projectGroup, vulasProjectVersion, vulasLookupByGAVs) {
-    def triaged = 0
-    def triagedCveString = ''
-    def vulnerability = 0
-    def vulnerabilityCveString = ''
-    def testProvided = 0
-    def testProvidedCveString = ''
-    def reachable = 0
-    def reachableCveString = ''
-    def overall = 0
-    def overallCveString = ''
-    def metrics = [:]
-    def vulnerabilities
-
-    try {
-        if (vulasLookupByGAVs) {
-            def vulns = vulasLookupByGAVs.collect {
-                artifact ->
-                    def gav = projectGroup + ":" + artifact + ":" + vulasProjectVersion
-                    vulas.lookupVulnerabilitiesByGAV(gav)
-            }
-            vulnerabilities = vulns.inject {
-                v1, v2 ->
-                    v1 + v2
-            }
-        } else {
-            vulnerabilities = vulas.lookupVulnerabilities()
-        }
-
-        vulnerabilities.each {
-            item ->
-                overall++
-                overallCveString += item.type + ';'
-                if (item.reachable) {
-                    reachable++
-                    reachableCveString += item.type + ';'
-                }
-
-                metrics[item.scope] = metrics[item.scope] ? (metrics[item.scope] + 1) : 1
-                metrics[item.scope + "_cve"] = metrics[item.scope + "_cve"] ? (metrics[item.scope + "_cve"] + item.type + ';') : '' + item.type + ';'
-
-                switch (item.state) {
-                    case 1:
-                        testProvided++
-                        testProvidedCveString += item.type + ';'
-                        break
-                    case 2:
-                        vulnerability++
-                        vulnerabilityCveString += item.type + ';'
-                        break
-                    case 4:
-                        triaged++
-                        triagedCveString += item.type + ';'
-                        break
-                }
-        }
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'overall', overall)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'overall_cve', overallCveString)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'proved_reachable', reachable)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'proved_reachable_cve', reachableCveString)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'vulnerabilities', vulnerability)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'vulnerabilities_cve', vulnerabilityCveString)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'triaged_vulnerabilities', triaged)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'triaged_vulnerabilities_cve', triagedCveString)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'testProvided_vulnerabilities', testProvided)
-        script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', 'testProvided_vulnerabilities_cve', testProvidedCveString)
-        metrics.entrySet().each {
-            entry ->
-                script.globalPipelineEnvironment.setInfluxCustomDataMapProperty('vulas_data', entry.key, entry.value)
-        }
-    } catch (e) {
-        Notify.warning(this, "Failed to report metrics to Influx DB, fetching Vulas data failed")
     }
 }
 
@@ -357,146 +270,22 @@ def executePythonScan(script, config, svm, vulasProjectVersion, buildDescriptor)
         dockerWorkspace: config.dockerWorkspace,
         stashContent: config.stashContent
     ) {
-        def options = [
-            "vulas.shared.backend.serviceUrl = ${config.serverUrl}${config.backendEndpoint}",
-            "vulas.core.backendConnection = READ_WRITE",
-            "vulas.report.reportDir = target/vulas/report",
-            "vulas.core.appContext.version = ${vulasProjectVersion}",
-            "vulas.core.app.sourceDir = ${config.pythonSources.join(',')}",
-            "vulas.core.app.appPrefixes = com.sap"
-        ]
-        if (config.vulasSpaceToken) options.add("vulas.core.space.token='${config.vulasSpaceToken}'")
-        if (config.ppmsID) options.add("vulas.report.sap.scv = ${config.ppmsID}")
-
-        def configFileName
-        if(config.pythonCli) {
-            configFileName = 'vulas-custom.properties'
-            config.pythonSources.each { e -> e = 'app/' + e }
-            if(config.pythonSources.size() == 0)
-                config.pythonSources += 'app'
-            options += [
-                "vulas.core.appContext.group = ${buildDescriptor['group']}",
-                "vulas.core.appContext.artifact = ${buildDescriptor['artifact']}",
-                "vulas.core.app.sourceDir = ${config.pythonSources.join(',')}",
-                "vulas.core.uploadEnabled = true"
-            ]
-            def pipInstallPath = sh script: "which ${config.pip}", returnStdout: true
-            if (pipInstallPath) {
-                options += ["vulas.core.bom.python.pip = ${pipInstallPath}"]
-            }
-        } else {
-            configFileName = 'vulas-python.cfg'
-            def pythonInstallPath = sh script: "which ${config.pythonVersion}", returnStdout: true
-            if (pythonInstallPath) {
-                options += ["vulas.core.bom.python.python = ${pythonInstallPath}"]
-            }
-        }
-
-        def configFileBackup = ''
-        def copyCommand = ''
-        if (fileExists(configFileName)) {
-            configFileBackup = "${configFileName}.original"
-            copyCommand = "cp ${configFileName} ${configFileBackup}\n"
-        }
-
-        def path = config.buildDescriptorFile.replaceAll('setup.py', '')
-        if(config.pythonCli) {
-            def releaseUrl = sh script: "curl -Ls -o /dev/null -w %{url_effective} https://github.wdf.sap.corp/vulas/vulas/releases/latest", returnStdout: true
-            def parts = releaseUrl.split("/")
-            def version = parts[parts.size() - 1]
-            def type = parts[parts.size() - 2]
-            def downloadUrl = "https://github.wdf.sap.corp/vulas/vulas/releases/download/${type}/${version}/vulas-cli-${version}.zip"
-
-            fetchExemptionFileFromSVM(config, svm, "${path}vulas-cli/")
-
-            sh """
-                cd ${path}
-                curl -L -o vulas-cli.zip ${downloadUrl}
-                unzip vulas-cli.zip
-                ${copyCommand}printf \'${options.join('\n')}\n\' ${configFileBackup} > ./vulas-cli/${configFileName}
-                find . -wholename '**/*' -not -type d -and -not -path '*/vulas-cli/*' -exec cp -p --parents {} ./vulas-cli/app \\;
-                cd vulas-cli/app
-                ${config.pythonInstallCommand}
-                cd ..
-                java -jar vulas-cli-${version}-jar-with-dependencies.jar -goal clean
-                java -jar vulas-cli-${version}-jar-with-dependencies.jar -goal app
-                java -jar vulas-cli-${version}-jar-with-dependencies.jar -goal report
-            """
-        } else {
-            fetchExemptionFileFromSVM(config, svm, "${path}")
-
-            sh """
-                cd ${path}
-                ${copyCommand}printf \'${options.join('\n')}\n\' ${configFileBackup} > ${configFileName}
-                ${config.pythonInstallCommand}
-            """
-
-            sh "cd ${path} && ${config.pythonVersion} setup.py clean && ${config.pythonVersion} setup.py app && ${config.pythonVersion} setup.py report"
-        }
+        //TODO add some extra config parameters
+         sh "./piper vulasExecuteScan" //add some custom configuration parameters
     }
 }
 
 def executeMavenScan(script, config, utils, svm, jenkinsUtils, vulasProjectVersion) {
-    def scanOptions= [
-        '--update-snapshots'
-    ]
-    def command
-    if ((jenkinsUtils.isJobStartedByTimer() || jenkinsUtils.isJobStartedByUser()) && config.vulasRunNightly) {
-        command = config.vulasNightlyCommand
-        scanOptions.add("-Dvulas.core.clean.purgeVersions=${config.vulasPurgeVersions}")
-        scanOptions.add("-Dvulas.core.clean.purgeVersions.keepLast=${config.vulasPurgeVersionsKeepLast}")
-    } else {
-        command = config.vulasCycleCommand
-    }
-    def reportOptions= [
-        '--fail-at-end',
-        "${config.vulasProperty}", // default: -Dvulas
-        '-Dvulas.report.overridePomVersion=true'
-    ]
-    def options = [
-        "--settings ${config.mvnSettingsFile}",
-        "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn",
-        '--batch-mode',
-        "--file ${config.buildDescriptorFile}",
-        "-Dvulas.core.appContext.version=${vulasProjectVersion}",
-        "-Dvulas.shared.backend.serviceUrl=${config.serverUrl}${config.backendEndpoint}"
-    ]
-    if(config.vulasSpaceToken) options.add("-Dvulas.core.space.token='${config.vulasSpaceToken}'")
-    if(config.ppmsID) options.add("-Dvulas.report.sap.scv='${config.ppmsID}'")
-
-//groovy
     dockerExecute(
         script: script,
         dockerImage: config.dockerImage,
         dockerWorkspace: config.dockerWorkspace,
         stashContent: config.stashContent
     ) {
-        //write settings.xml file that knows about the staging repo as well as the standard repos of nexus
-        utils.rewriteSettings(this, config.artifactUrl, config.mvnSettingsFile, "${config.dockerWorkspace}/.m2/settings.xml")
-
-        fetchExemptionFileFromSVM(config, svm)
-
-        sh "mvn ${options.plus(scanOptions).join(' ')} ${command}"
-        sh "mvn ${options.plus(reportOptions).join(' ')} ${config.vulasPlugin}:report"
+        //TODO add some extra config parameters
+           sh "./piper vulasExecuteScan" //add some custom parameters
     }
     return vulasProjectVersion
-}
-
-void fetchExemptionFileFromSVM(config, svm, targetFile = './') {
-    if(config.svmCredentialsId) {
-        svm.fetchExemptionFile(targetFile)
-    }
-}
-
-def getProjectVersion(config, buildDescriptor){
-    def version = null
-    // load version from version mapping
-    if (null != config.vulasVersionMapping && !config.vulasVersionMapping.keySet().isEmpty())
-        version = config.vulasVersionMapping[config.buildDescriptorFile.replaceFirst('\\./', '')] ?: null
-    // load version from buildDescriptor file
-    if (null == version)
-        version = buildDescriptor.version.split('\\.')[0]
-    return version
 }
 
 void publishReport(name, path){
