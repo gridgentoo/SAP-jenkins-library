@@ -51,6 +51,11 @@ func protecodeExecuteScan(config protecodeExecuteScanOptions, telemetryData *tel
 
 func runProtecodeScan(config *protecodeExecuteScanOptions, influx *protecodeExecuteScanInflux, dClient piperDocker.Download) error {
 
+	fmt.Println("DOCKER CONFIG: " + os.Getenv("DOCKER_CONFIG"))
+	fmt.Println("DOCKER CONFIG: " + filepath.Dir(os.Getenv("DOCKER_CONFIG")))
+
+	os.Setenv("DOCKER_CONFIG", filepath.Dir(os.Getenv("DOCKER_CONFIG")))
+
 	var fileName, filePath string
 	//create client for sending api request
 	log.Entry().Debug("Create protecode client")
