@@ -14,6 +14,6 @@ import static com.sap.piper.Prerequisites.checkScript
 void call(Map parameters = [:]) {
     final script = checkScript(this, parameters) ?: this
     echo "dbg>> before cf deploy"
-    piperExecuteBin(parameters, STEP_NAME, METADATA_FILE, null)
+    piperExecuteBin(parameters, STEP_NAME, METADATA_FILE, [])
     echo "dbg>> after cf deploy"
 }
