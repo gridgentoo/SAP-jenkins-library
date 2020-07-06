@@ -74,3 +74,19 @@ func runInTempDir(t *testing.T, nameOfRun, tempDirPattern string, run func(t *te
 
 	t.Run(nameOfRun, run)
 }
+
+func TestFindFiles(t *testing.T) {
+
+	workdir, err := os.Getwd()
+
+	if assert.NoError(t, err) {
+
+		files, err := FindFiles(workdir + "/..", ".*\\.yaml")
+
+		for i, v := range files {
+			t.Logf("%d = %s\n", i, v)
+		}
+
+		assert.NoError(t, err)
+	}
+}
