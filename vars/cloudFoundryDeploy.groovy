@@ -211,6 +211,9 @@ void call(Map parameters = [:]) {
             .withMandatoryProperty('cloudFoundry/credentialsId')
             .use()
 
+            def deployTool =
+                        (script.commonPipelineEnvironment.configuration.isMta) ? 'mtaDeployPlugin' : 'cf_native'
+
 
 // FIXME(fwilhe) jsut for testing
         echo "dbg>> before cf deploy"
@@ -226,7 +229,7 @@ void call(Map parameters = [:]) {
             parameters['username'] = username
             parameters['manifest'] = config.cloudFoundry.manifest
             parameters['appName'] = config.cloudFoundry.appName
-            parameters['deployTool'] = 'cf_native'
+            parameters['deployTool'] = deployTool
             piperExecuteBin(parameters, STEP_NAME, METADATA_FILE, [])
             echo "dbg>> after cf deploy"
         }
