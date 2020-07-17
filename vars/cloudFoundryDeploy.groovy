@@ -212,7 +212,7 @@ void call(Map parameters = [:]) {
             .use()
 
             def deployTool =
-                        (script.commonPipelineEnvironment.configuration.isMta) ? 'mtaDeployPlugin' : 'cf_native'
+                        (script.commonPipelineEnvironment.getBuildTool()=='mta') ? 'mtaDeployPlugin' : 'cf_native'
 
             echo "dbg>> config $config"
 
