@@ -1074,3 +1074,130 @@ func TestMtarLookup(t *testing.T) {
 		assert.EqualError(t, err, "Found multiple mtar files matching pattern '**/*.mtar' (x.mtar,y.mtar), please specify file via mtaPath parameter 'mtarPath'")
 	})
 }
+
+func TestSmokeTestScriptHandling(t *testing.T) {
+
+	filesMock := mock.FilesMock{}
+	filesMock.AddDir("/home/me")
+	filesMock.Chdir("/home/me")
+	filesMock.AddFileWithMode("mySmokeTestScript.sh", []byte("Content does not matter"), 0644)
+	fileUtils = &filesMock
+
+	var canExec os.FileMode = 0755
+
+	t.Run("non default existing smoke test file", func(t *testing.T) {
+
+		parts, err := handleSmokeTestScript("mySmokeTestScript.sh")
+		if assert.NoError(t, err) {
+			// when the none-default file name is provided the file must already exist
+			// in the project sources.
+			assert.False(t, filesMock.HasWrittenFile("mySmokeTestScript.sh"))
+			info, e := filesMock.Stat("mySmokeTestScript.sh")
+			if assert.NoError(t, e) {
+				assert.Equal(t, canExec, info.Mode())
+			}
+
+			assert.Equal(t, []string{
+				"--smoke-test",
+				"/home/me/mySmokeTestScript.sh",
+			}, parts)
+		}
+	})
+
+	t.Run("non default not existing smoke test file", func(t *testing.T) {
+
+		parts, err := handleSmokeTestScript("notExistingSmokeTestScript.sh")
+		if assert.EqualError(t, err, "chmod: notExistingSmokeTestScript.sh: No such file or directory") {
+			assert.False(t, filesMock.HasWrittenFile("notExistingSmokeTestScript.sh"))
+			assert.Equal(t, []string{}, parts)
+		}
+	})
+
+	t.Run("default smoke test file", func(t *testing.T) {
+
+		parts, err := handleSmokeTestScript("blueGreenCheckScript.sh")
+
+		if assert.NoError(t, err) {
+
+			info, e := filesMock.Stat("blueGreenCheckScript.sh")
+			if assert.NoError(t, e) {
+				assert.Equal(t, canExec, info.Mode())
+			}
+
+			// in this case we provide the file. We overwrite in case there is already such a file ...
+			assert.True(t, filesMock.HasWrittenFile("blueGreenCheckScript.sh"))
+
+			content, e := filesMock.FileRead("blueGreenCheckScript.sh")
+
+			if assert.NoError(t, e) {
+				assert.Equal(t, "#!/usr/bin/env bash\n# this is simply testing if the application root returns HTTP STATUS_CODE\ncurl -so /dev/null -w '%{response_code}' https://$1 | grep $STATUS_CODE", string(content))
+			}
+
+			assert.Equal(t, []string{
+				"--smoke-test",
+				"/home/me/blueGreenCheckScript.sh",
+			}, parts)
+		}
+	})
+}
+
+func TestDefaultManifestVariableFilesHandling(t *testing.T) {
+
+	filesMock := mock.FilesMock{}
+	filesMock.AddDir("/home/me")
+	filesMock.Chdir("/home/me")
+	fileUtils = &filesMock
+
+	t.Run("default manifest variable file is the only one and exists", func(t *testing.T) {
+		defer func() {
+			filesMock.FileRemove("manifest-variables.yml")
+		}()
+		filesMock.AddFile("manifest-variables.yml", []byte("Content does not matter"))
+
+		manifestFiles, err := removeDefaultManifestVariableFileIfItIsTheOnlyFileAndThatFileDoesNotExist(
+			[]string{
+				"manifest-variables.yml",
+			},
+		)
+
+		if assert.NoError(t, err) {
+			assert.Equal(t,
+				[]string{
+					"manifest-variables.yml",
+				}, manifestFiles)
+		}
+	})
+
+	t.Run("default manifest variable file is the only one and does not exist", func(t *testing.T) {
+
+		manifestFiles, err := removeDefaultManifestVariableFileIfItIsTheOnlyFileAndThatFileDoesNotExist(
+			[]string{
+				"manifest-variables.yml",
+			},
+		)
+
+		if assert.NoError(t, err) {
+			assert.Equal(t, []string{}, manifestFiles)
+		}
+	})
+
+	t.Run("default manifest variable file among others remains if it does not exist", func(t *testing.T) {
+
+		// in this case we might fail later.
+
+		manifestFiles, err := removeDefaultManifestVariableFileIfItIsTheOnlyFileAndThatFileDoesNotExist(
+			[]string{
+				"manifest-variables.yml",
+				"a-second-file.yml",
+			},
+		)
+
+		if assert.NoError(t, err) {
+			// the order in which the files are returned is significant.
+			assert.Equal(t, []string{
+				"manifest-variables.yml",
+				"a-second-file.yml",
+			}, manifestFiles)
+		}
+	})
+}
