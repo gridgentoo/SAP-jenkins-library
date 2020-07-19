@@ -53,6 +53,7 @@ func givenThisContainer(t *testing.T, bundle IntegrationTestDockerExecRunnerBund
 		User:          bundle.User,
 		Mounts:        bundle.Mounts,
 		Setup:         bundle.Setup,
+		Environment:   bundle.Environment,
 		ContainerName: containerName,
 	}
 
@@ -63,15 +64,23 @@ func givenThisContainer(t *testing.T, bundle IntegrationTestDockerExecRunnerBund
 		t.Fatal("Could not locate piper binary to test")
 	}
 
-	projectDir := path.Join(wd, path.Join(bundle.TestDir...))
+	params := []string{"run", "--detach", "-v", localPiper + ":/piper", "--name=" + testRunner.ContainerName}
+	if testRunner.User != "" {
+		params = append(params, fmt.Sprintf("--user=%s", testRunner.User))
+	}
+	if len(bundle.TestDir) > 0 {
+		projectDir := path.Join(wd, path.Join(bundle.TestDir...))
+		params = append(params, "-v", fmt.Sprintf("%s:/project", projectDir))
+	}
+	if len(testRunner.Environment) > 0 {
+		for envVarName, envVarValue := range testRunner.Environment {
+			params = append(params, "--env", fmt.Sprintf("%s='%s'", envVarName, envVarValue))
+		}
+	}
+	params = append(params, testRunner.Image, "sleep", "2000")
 
 	//todo mounts
-	//todo env (secrets)
-	err := testRunner.Runner.RunExecutable("docker", "run", "-d", "-u="+testRunner.User,
-		"-v", localPiper+":/piper", "-v", projectDir+":/project",
-		"--name="+testRunner.ContainerName,
-		testRunner.Image,
-		"sleep", "2000")
+	err := testRunner.Runner.RunExecutable("docker", params...)
 	if err != nil {
 		t.Fatalf("Starting test container has failed %s", err)
 	}
@@ -94,7 +103,13 @@ func givenThisContainer(t *testing.T, bundle IntegrationTestDockerExecRunnerBund
 }
 
 func (d *IntegrationTestDockerExecRunner) whenRunningPiperCommand(command string, parameters ...string) error {
-	args := []string{"exec", "--workdir", "/project", d.ContainerName, "/bin/bash", "/piper-wrapper", "/piper", command}
+	args := []string{"exec"}
+	if len(d.TestDir) > 0 {
+		args = append(args, "--workdir", "/project")
+	}
+	//fixme
+	args = append(args, "--workdir", "/app")
+	args = append(args, d.ContainerName, "/bin/bash", "/piper-wrapper", "/piper", command)
 	args = append(args, parameters...)
 	return d.Runner.RunExecutable("docker", args...)
 }
