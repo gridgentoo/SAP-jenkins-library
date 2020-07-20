@@ -104,11 +104,7 @@ func givenThisContainer(t *testing.T, bundle IntegrationTestDockerExecRunnerBund
 
 func (d *IntegrationTestDockerExecRunner) whenRunningPiperCommand(command string, parameters ...string) error {
 	args := []string{"exec"}
-	if len(d.TestDir) > 0 {
-		args = append(args, "--workdir", "/project")
-	}
-	//fixme
-	args = append(args, "--workdir", "/app")
+	args = append(args, "--workdir", "/project") // we have the assumption that /projects is either mounted by the test code, or already exists in the image
 	args = append(args, d.ContainerName, "/bin/bash", "/piper-wrapper", "/piper", command)
 	args = append(args, parameters...)
 	return d.Runner.RunExecutable("docker", args...)
