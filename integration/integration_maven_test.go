@@ -24,6 +24,13 @@ func TestMavenBuildCloudSdkSpringProject(t *testing.T) {
 	container.assertHasOutput(t, "BUILD SUCCESS")
 	container.assertHasFile(t, "/project/application/target/cloud-sdk-spring-archetype-application.jar")
 	container.assertHasFile(t, "/tmp/.m2/repository")
+
+	err = container.whenRunningPiperCommand("mavenExecuteIntegration", "")
+	if err != nil {
+		t.Fatalf("Calling piper command filed %s", err)
+	}
+
+	container.assertHasFile(t, "/project/integration-tests/target/cloud-sdk-spring-archetype-integration-tests-1.0.0-SNAPSHOT.jar")
 }
 
 func TestMavenBuildCloudSdkTomeeProject(t *testing.T) {
