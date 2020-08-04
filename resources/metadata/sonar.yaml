@@ -13,7 +13,7 @@ spec:
           - STAGES
           - STEPS
         default: 'SonarCloud'
-      - name: host
+      - name: serverUrl
         type: string
         description: The URL to the Sonar backend.
         scope:
@@ -22,6 +22,8 @@ spec:
           - STEPS
         aliases:
           - name: sonarServerUrl
+          - name: host
+            deprecated: true
       - name: token
         type: string
         description: Token used to authenticate with the Sonar Server.
