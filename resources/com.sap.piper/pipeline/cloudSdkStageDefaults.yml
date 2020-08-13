@@ -52,4 +52,4 @@ stages:
           - 'runScripts'
       mavenExecuteIntegration:
         fileExists:
-          filePattern: 'integration-tests/pom.xml'
+          filePattern: '**/integration-tests/pom.xml'
