@@ -41,7 +41,7 @@ class TemporaryCredentialsUtils implements Serializable {
                 if (script.fileExists("systems.yml") || script.fileExists("systems.yaml") || script.fileExists("systems.json")) {
                     String credentialJson = returnCredentialsAsJSON(credentialItems)
 
-                    script.echo "Writing credentials file with ${credentialItems.size()} items."
+                    script.echo "Writing credentials file with ${credentialItems.size()} items to ${credentialsDirectories[i]}."
                     script.writeFile file: credentialsFileName, text: credentialJson
                     systemsFileFound = true
                 }
