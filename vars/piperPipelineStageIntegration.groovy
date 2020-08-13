@@ -55,6 +55,7 @@ void call(Map parameters = [:]) {
                     npmExecuteScripts script: script, stageName: stageName
                 }
             }
+            println(config.mavenExecuteIntegration)
             if (config.mavenExecuteIntegration) {
                 publishResults = true
                 String credentialsFilePath = "integration-tests/src/test/resources"
