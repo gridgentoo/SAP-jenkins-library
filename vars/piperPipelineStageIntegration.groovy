@@ -55,7 +55,8 @@ void call(Map parameters = [:]) {
                     npmExecuteScripts script: script, stageName: stageName
                 }
             }
-            println(config.mavenExecuteIntegration)
+            println("Thats the step config bool ${config.mavenExecuteIntegration}")
+            println("Thats fileExists: ${fileExists('integration-tests/pom.xml')}")
             if (config.mavenExecuteIntegration) {
                 publishResults = true
                 String credentialsFilePath = "integration-tests/src/test/resources"
