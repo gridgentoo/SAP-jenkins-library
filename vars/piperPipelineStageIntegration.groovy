@@ -47,21 +47,16 @@ void call(Map parameters = [:]) {
 
         boolean publishResults = false
         try {
-            if (config.npmExecuteScripts) {
-                publishResults = true
-                String credentialsFilePath = "./"
-
-                writeTemporaryCredentials(script: script, credentialsDirectory: credentialsFilePath) {
+            List credentialDirectories = ['./', 'integration-tests/src/test/resources']
+            writeTemporaryCredentials(script: script, credentialDirectories: credentialDirectories) {
+                if (config.npmExecuteScripts) {
+                    publishResults = true
                     npmExecuteScripts script: script, stageName: stageName
                 }
-            }
-            println("Thats the step config bool ${config.mavenExecuteIntegration}")
-            println("Thats fileExists: ${fileExists('integration-tests/pom.xml')}")
-            if (config.mavenExecuteIntegration) {
-                publishResults = true
-                String credentialsFilePath = "integration-tests/src/test/resources"
-
-                writeTemporaryCredentials(script: script, credentialsDirectory: credentialsFilePath) {
+                println("Thats the step config bool ${config.mavenExecuteIntegration}")
+                println("Thats fileExists: ${fileExists('integration-tests/pom.xml')}")
+                if (config.mavenExecuteIntegration) {
+                    publishResults = true
                     mavenExecuteIntegration script: script, stageName: stageName
                 }
             }
