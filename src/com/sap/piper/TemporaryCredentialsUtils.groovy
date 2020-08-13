@@ -38,15 +38,18 @@ class TemporaryCredentialsUtils implements Serializable {
         Boolean systemsFileFound = false
         for (int i = 0; i < credentialsDirectories.size(); i++) {
             script.println("Inside loop for the ${i} time")
-            script.dir(credentialsDirectories[i]) {
-                script.println("entered dir: ${credentialsDirectories[i]}")
-                if (script.fileExists("systems.yml") || script.fileExists("systems.yaml") || script.fileExists("systems.json")) {
-                    String credentialJson = returnCredentialsAsJSON(credentialItems)
+            script.println("entered dir: ${credentialsDirectories[i]}")
+            if (script.fileExists("systems.yml") || script.fileExists("systems.yaml") || script.fileExists("systems.json")) {
+                String credentialJson = returnCredentialsAsJSON(credentialItems)
 
-                    script.echo "Writing credentials file with ${credentialItems.size()} items to ${credentialsDirectories[i]}."
-                    script.writeFile file: credentialsFileName, text: credentialJson
-                    systemsFileFound = true
+                if (!credentialsDirectories[i].endsWith("/")) {
+                    credentialsDirectories[i] += '/'
                 }
+
+                script.echo "Writing credentials file with ${credentialItems.size()} items to ${credentialsDirectories[i]}."
+                script.writeFile file: credentialsDirectories[i] + credentialsFileName, text: credentialJson
+
+                systemsFileFound = true
             }
         }
         if (!systemsFileFound) {
@@ -58,11 +61,13 @@ class TemporaryCredentialsUtils implements Serializable {
 
     private void deleteCredentials(List credentialsDirectories, String credentialsFileName) {
         for (int i = 0; i < credentialsDirectories.size(); i++) {
-            script.dir(credentialsDirectories[i]) {
-                if (script.fileExists(credentialsFileName)) {
-                    script.echo "Deleting credentials file in ${credentialsDirectories[i]}."
-                    script.sh "rm -f ${credentialsFileName}"
-                }
+            if(!credentialsDirectories[i].endsWith('/'))
+                credentialsDirectories[i] += '/'
+            println(credentialsDirectories[i]+credentialsFileName)
+
+            if (script.fileExists(credentialsDirectories[i] + credentialsFileName)) {
+                script.echo "Deleting credentials file in ${credentialsDirectories[i]}."
+                script.sh "rm -f ${credentialsDirectories[i] + credentialsFileName}"
             }
         }
     }

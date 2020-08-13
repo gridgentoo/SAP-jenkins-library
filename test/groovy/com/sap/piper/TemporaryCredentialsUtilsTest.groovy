@@ -64,7 +64,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
 
         credUtils.writeCredentials([credential], directories, filename )
 
-        assertThat(writeFileRule.files['credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
+        assertThat(writeFileRule.files['./credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
     }
 
     @Test
@@ -77,8 +77,8 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
 
         credUtils.writeCredentials([credential], directories, filename )
 
-        assertThat(writeFileRule.files['credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
-        assertThat(writeFileRule.files['integration-tests/src/test/resources/credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
+        assertThat(writeFileRule.files["./credentials.json"], containsString('"alias":"ERP","username":"test_user","password":"********"'))
+        assertThat(writeFileRule.files["integration-tests/src/test/resources/credentials.json"], containsString('"alias":"ERP","username":"test_user","password":"********"'))
     }
 
     @Test
@@ -98,7 +98,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def directories = ['./', 'integration-tests/src/test/resources']
         def filename = 'credentials.json'
         thrown.expect(hudson.AbortException)
-        thrown.expectMessage("The directory ${directory} does not contain any of the files systems.yml, systems.yaml or systems.json. " +
+        thrown.expectMessage("None of the directories ${directories} contains any of the files systems.yml, systems.yaml or systems.json. " +
             "One of those files is required in order to activate the integration test credentials configured in the pipeline configuration file of this project. " +
             "Please add the file as explained in the SAP Cloud SDK documentation.")
 
@@ -110,10 +110,11 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def directories = ['./', 'integration-tests/src/test/resources']
         def filename = 'credentials.json'
         fileExistsRule.registerExistingFile('systems.yml')
+        fileExistsRule.registerExistingFile('./credentials.json')
 
         credUtils.deleteCredentials(directories, filename )
 
-        assertThat(shellRule.shell, hasItem('rm -f credentials.json'))
+        assertThat(shellRule.shell, hasItem('rm -f ./credentials.json'))
     }
 
     @Test
@@ -121,13 +122,14 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def credential = [alias: 'ERP', credentialId: 'erp-credentials']
         def directories = ['./', 'integration-tests/src/test/resources']
         fileExistsRule.registerExistingFile('systems.yml')
+        fileExistsRule.registerExistingFile('./credentials.json')
 
         credUtils.handleTemporaryCredentials([credential], directories) {
             bodyExecuted = true
         }
         assertTrue(bodyExecuted)
-        assertThat(writeFileRule.files['credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
-        assertThat(shellRule.shell, hasItem('rm -f credentials.json'))
+        assertThat(writeFileRule.files['./credentials.json'], containsString('"alias":"ERP","username":"test_user","password":"********"'))
+        assertThat(shellRule.shell, hasItem('rm -f ./credentials.json'))
     }
 
     @Test
