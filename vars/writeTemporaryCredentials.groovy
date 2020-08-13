@@ -61,7 +61,7 @@ void call(Map parameters = [:], Closure body) {
 
         TemporaryCredentialsUtils credUtils = new TemporaryCredentialsUtils(script)
 
-        credUtils.handleTemporaryCredentials(config.credentials, config.credentialsDirectory) {
+        credUtils.handleTemporaryCredentials(config.credentials, ['./', 'integration-tests/src/test/resources']) {
             body()
         }
     }
