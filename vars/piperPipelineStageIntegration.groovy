@@ -47,8 +47,8 @@ void call(Map parameters = [:]) {
 
         boolean publishResults = false
         try {
-            List credentialDirectories = ['./', 'integration-tests/src/test/resources']
-            writeTemporaryCredentials(script: script, credentialDirectories: credentialDirectories) {
+            List credentialsDirectories = ['./', 'integration-tests/src/test/resources']
+            writeTemporaryCredentials(script: script, credentialsDirectories: credentialsDirectories) {
                 if (config.npmExecuteScripts) {
                     publishResults = true
                     npmExecuteScripts script: script, stageName: stageName
