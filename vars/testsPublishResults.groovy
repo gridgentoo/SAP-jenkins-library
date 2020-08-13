@@ -79,7 +79,7 @@ void call(Map parameters = [:]) {
         publishCoberturaReport(configuration.get('cobertura'))
         publishJMeterReport(configuration.get('jmeter'))
         publishCucumberReport(configuration.get('cucumber'))
-        println("Thats the config: ${configuration}")
+        println("Thats the config: ${configuration.get('junit')}")
         if (configuration.failOnError && JenkinsUtils.hasTestFailures(script.currentBuild)) {
             script.currentBuild.result = 'FAILURE'
             error "[${STEP_NAME}] Some tests failed!"
