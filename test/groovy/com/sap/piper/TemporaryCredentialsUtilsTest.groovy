@@ -60,7 +60,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def credential = [alias: 'ERP', credentialId: 'erp-credentials']
         def directories = ['./', 'integration-tests/src/test/resources']
         def filename = 'credentials.json'
-        fileExistsRule.registerExistingFile('systems.yml')
+        fileExistsRule.registerExistingFile('./systems.yml')
 
         credUtils.writeCredentials([credential], directories, filename )
 
@@ -72,7 +72,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def credential = [alias: 'ERP', credentialId: 'erp-credentials']
         def directories = ['./', 'integration-tests/src/test/resources']
         def filename = 'credentials.json'
-        fileExistsRule.registerExistingFile('systems.yml')
+        fileExistsRule.registerExistingFile('./systems.yml')
         fileExistsRule.registerExistingFile('integration-tests/src/test/resources/systems.yml')
 
         credUtils.writeCredentials([credential], directories, filename )
@@ -98,7 +98,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
         def directories = ['./', 'integration-tests/src/test/resources']
         def filename = 'credentials.json'
         thrown.expect(hudson.AbortException)
-        thrown.expectMessage("None of the directories ${directories} contains any of the files systems.yml, systems.yaml or systems.json. " +
+        thrown.expectMessage("None of the directories [./, integration-tests/src/test/resources/] contains any of the files systems.yml, systems.yaml or systems.json. " +
             "One of those files is required in order to activate the integration test credentials configured in the pipeline configuration file of this project. " +
             "Please add the file as explained in the SAP Cloud SDK documentation.")
 
@@ -121,7 +121,7 @@ class TemporaryCredentialsUtilsTest extends BasePiperTest {
     void handleTemporaryCredentials() {
         def credential = [alias: 'ERP', credentialId: 'erp-credentials']
         def directories = ['./', 'integration-tests/src/test/resources']
-        fileExistsRule.registerExistingFile('systems.yml')
+        fileExistsRule.registerExistingFile('./systems.yml')
         fileExistsRule.registerExistingFile('./credentials.json')
 
         credUtils.handleTemporaryCredentials([credential], directories) {
