@@ -51,4 +51,4 @@ stages:
         configKeys:
           - 'runScripts'
       mavenExecuteIntegration:
-        filePattern: '**/integration-tests/pom.xml'
+        filePattern: 'integration-tests/pom.xml'
