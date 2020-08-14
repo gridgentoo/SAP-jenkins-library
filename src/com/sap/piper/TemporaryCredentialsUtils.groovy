@@ -39,7 +39,7 @@ class TemporaryCredentialsUtils implements Serializable {
         for (int i = 0; i < credentialsDirectories.size(); i++) {
             script.println("Inside loop for the ${i} time")
             script.println("entered dir: ${credentialsDirectories[i]}")
-            if (!credentialsDirectories[i].endsWith("/")) {
+            if (credentialsDirectories[i] && !credentialsDirectories[i].endsWith("/")) {
                 credentialsDirectories[i] += '/'
             }
             if (script.fileExists("${credentialsDirectories[i]}systems.yml") || script.fileExists("${credentialsDirectories[i]}systems.yaml") || script.fileExists("${credentialsDirectories[i]}systems.json")) {
